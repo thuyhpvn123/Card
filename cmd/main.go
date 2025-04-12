@@ -2,9 +2,11 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
+
 	"github.com/meta-node-blockchain/meta-node/pkg/logger"
 	"github.com/meta-node-blockchain/noti-contract/app"
 )
@@ -20,6 +22,11 @@ var (
 	LOG_LEVEL        int
 )
 func main() {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("❌ Recovered from panic:", r)
+		}
+	}()
 
 	flag.StringVar(&CONFIG_FILE_PATH, "config", defaultConfigPath, "Config path")
 	flag.StringVar(&CONFIG_FILE_PATH, "c", defaultConfigPath, "Config path (shorthand)")

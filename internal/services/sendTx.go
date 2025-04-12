@@ -14,9 +14,6 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	e_common "github.com/ethereum/go-ethereum/common"
-	// "github.com/meta-node-blockchain/meta-node/emailstorage"
-	// rc "github.com/meta-node-blockchain/meta-node/pkg/receipt"
-	// "github.com/meta-node-blockchain/meta-node/types"
 )
 
 type SendTransactionService interface {

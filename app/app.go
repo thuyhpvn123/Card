@@ -107,6 +107,7 @@ func NewApp(
 		&cardAbi,
 		string(bserverPrivateKey),
 		leveldb,
+		config.ThirdPartyApiUrl,
 	)
 
 	app.Config = config

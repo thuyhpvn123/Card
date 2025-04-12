@@ -1,28 +1,25 @@
 package network
 
 import (
-	// "bytes"
-	// "crypto/ecdsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	// "math/big"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	e_common "github.com/ethereum/go-ethereum/common"
 
-	// "github.com/meta-node-blockchain/meta-node/cmd/client"
 	"github.com/meta-node-blockchain/meta-node/pkg/logger"
 	"github.com/meta-node-blockchain/meta-node/types"
 	"github.com/meta-node-blockchain/noti-contract/internal/config"
+	"github.com/meta-node-blockchain/noti-contract/internal/database"
 	"github.com/meta-node-blockchain/noti-contract/internal/model"
 	"github.com/meta-node-blockchain/noti-contract/internal/services"
 	"github.com/meta-node-blockchain/noti-contract/internal/utils"
 	"github.com/syndtr/goleveldb/leveldb"
-	"github.com/meta-node-blockchain/noti-contract/internal/database"
-
 )
 
 type CardHandler struct {
@@ -31,6 +28,7 @@ type CardHandler struct {
 	cardABI          *abi.ABI
 	ServerPrivateKey string
 	DB *leveldb.DB
+	thirdPartyURL string
 }
 
 func NewCardEventHandler(
@@ -39,6 +37,7 @@ func NewCardEventHandler(
 	cardABI *abi.ABI,
 	ServerPrivateKey string,
 	DB *leveldb.DB,
+	thirdPartyURL string,
 ) *CardHandler {
 	return &CardHandler{
 		config:           config,
@@ -46,6 +45,7 @@ func NewCardEventHandler(
 		cardABI:          cardABI,
 		ServerPrivateKey: ServerPrivateKey,
 		DB : DB,
+		thirdPartyURL:thirdPartyURL,
 	}
 }
 func (h *CardHandler) VerifyPublicKey(){
@@ -72,15 +72,14 @@ func (h *CardHandler) HandleConnectSmartContract(events types.EventLogs) {
 	}
 }
 func (h *CardHandler) handleTokenRequest(data string) {
+	fmt.Println("handleTokenRequest")
 	result := make(map[string]interface{})
 	err := h.cardABI.UnpackIntoMap(result, "TokenRequest", e_common.FromHex(data))
 	if err != nil {
 		logger.Error("can't unpack to map", err)
 		return
 	}
-	fmt.Println("result la:",result)
 	// Convert HEX string to bytes
-	fmt.Println("h.ServerPrivateKey:",h.ServerPrivateKey)
 	serverPrivateKeyBytes, err := hex.DecodeString(h.ServerPrivateKey)
 	if err != nil {
 		logger.Error("Lỗi giải mã HEX: %v", err)
@@ -93,11 +92,6 @@ func (h *CardHandler) handleTokenRequest(data string) {
 		logger.Error("Lỗi parse private key: %v", err)
 		return
 	}
-	// serverPriv, ok := key.(*ecdsa.PrivateKey)
-	// if !ok {
-	// 	logger.Error("Parsed key is not ECDSA private key")
-	// 	return
-	// }
 	encryptedCardData, ok := result["encryptedCardData"].([]byte)
 	if !ok {
 		logger.Error("fail in parse encryptedCardData :", err)
@@ -118,10 +112,6 @@ func (h *CardHandler) handleTokenRequest(data string) {
 		logger.Error("❌ Parse card failed: %v", err)
 		return
 	}
-	// if !sendToThirdParty(card, event.Amount, event.Merchant) {
-	//     logger.Error("❌ Swipe API failed: %v", err)
-	//     return
-	// }
 	fmt.Println("user la :",result["user"])
 	fmt.Printf("type %v",result["user"])
 	user, ok := result["user"].(common.Address)
@@ -142,7 +132,7 @@ func (h *CardHandler) handleTokenRequest(data string) {
 	h.service.SubmitToken(user,tokenId,region,requestId,cardHash)
 	callmap :=map[string]interface{}{
 		"key": "token_" + hex.EncodeToString(tokenId[:]),
-		"data":encyptedCard,
+		"data":hex.EncodeToString(encryptedCardData),
 
 	}
 	err = database.WriteValueStorage(callmap,h.DB)
@@ -150,17 +140,36 @@ func (h *CardHandler) handleTokenRequest(data string) {
 		logger.Error("fail in save in leveldb handleTokenRequest:", err)
 		return
 	}
+	logger.Info("Saved token in db")
+	// if !utils.SendToThirdParty(card, big.NewInt(0), common.Address{},h.thirdPartyURL) {
+	//     logger.Error("❌ Pre-charge failed")
+	//     return
+	// }
+
 }
 
 func (h *CardHandler) handleChargeRequest(data string) {
+	fmt.Println("handleChargeRequest")
 	result := make(map[string]interface{})
 	err := h.cardABI.UnpackIntoMap(result, "ChargeRequest", e_common.FromHex(data))
 	if err != nil {
 		logger.Error("can't unpack to map", err)
 		return
 	}
+	tokenId, ok := result["tokenId"].([32]byte)
+	if !ok {
+		logger.Error("fail in parse tokenId:", err)
+		return
+	}
+	callmap :=map[string]interface{}{
+		"key": "token_" + hex.EncodeToString(tokenId[:]),
+	}
+	encryptedCardData,err := database.ReadValueStorage(callmap,h.DB)
+	if err != nil {
+		logger.Error("fail in get encryptedCardData in db:", err)
+		return
+	}
 	// Convert HEX string to bytes
-	fmt.Println("h.ServerPrivateKey:",h.ServerPrivateKey)
 	serverPrivateKeyBytes, err := hex.DecodeString(h.ServerPrivateKey)
 	if err != nil {
 		logger.Error("Lỗi giải mã HEX: %v", err)
@@ -173,21 +182,9 @@ func (h *CardHandler) handleChargeRequest(data string) {
 		logger.Error("Lỗi parse private key: %v", err)
 		return
 	}
-	// serverPriv, ok := key.(*ecdsa.PrivateKey)
-	// if !ok {
-	// 	logger.Error("Parsed key is not ECDSA private key")
-	// 	return
-	// }
-	encryptedCardData, ok := result["encryptedCardData"].([]byte)
-	if !ok {
-		logger.Error("fail in parse encryptedCardData:", err)
-		return
-	}
-	fmt.Println("encryptedCardData:",hex.EncodeToString(encryptedCardData))
+	
 	encyptedCard := encryptedCardData[65:]
 	clientPublicKey := encryptedCardData[:65]
-	fmt.Println("clientPublicKey:",hex.EncodeToString(clientPublicKey))
-	fmt.Println("encyptedCard:",hex.EncodeToString(encyptedCard))
 	token, err := utils.DecryptAESGCM(encyptedCard, key, clientPublicKey)
 	if err != nil {
 		logger.Error("fail in decrypt token:", err)
@@ -198,25 +195,21 @@ func (h *CardHandler) handleChargeRequest(data string) {
 		logger.Error("❌ Parse card failed: %v", err)
 		return
 	}
-	// if !sendToThirdParty(card, event.Amount, event.Merchant) {
+	// amount, ok := result["amount"].(*big.Int)
+	// if !ok {
+	// 	logger.Error("fail in parse amount:", err)
+	// 	return
+	// }
+	// merchant, ok := result["merchant"].(common.Address)
+	// if !ok {
+	// 	logger.Error("fail in parse merchant:", err)
+	// 	return
+	// }
+
+	// if !utils.SendToThirdParty(card, amount, merchant,h.thirdPartyURL) {
 	//     logger.Error("❌ Swipe API failed: %v", err)
 	//     return
 	// }
-	user, ok := result["user"].(common.Address)
-	if !ok {
-		logger.Error("fail in parse scheduledTimes:", err)
-		return
-	}
-	requestId, ok := result["requestId"].([32]byte)
-	if !ok {
-		logger.Error("fail in parse scheduledTimes:", err)
-		return
-	}
-	tokenId := utils.GenerateTokenID()
-	cardHash:= sha256.Sum256([]byte(card.CardNumber + card.ExpMonth + card.ExpYear))
 
-	//api get region bo sung sau
-	region := ""
-	h.service.SubmitToken(user,tokenId,region,requestId,cardHash)
 	
 }

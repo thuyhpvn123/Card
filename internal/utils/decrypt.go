@@ -57,43 +57,78 @@ func EncryptAESGCM(sharedSecret, plaintext []byte) (string, error) {
 }
 
 // DecryptAESGCM giải mã encryptedDeviceToken
-func DecryptAESGCM(encryptedText []byte,serverPriv *ecdsa.PrivateKey,clientPublic []byte) ([]byte, error) {
-	fmt.Println("clientPublic:",hex.EncodeToString(clientPublic))
-	// sharedSecret := ComputeSharedSecret(serverPrivate, clientPublic)
-	// clientPrivBytes, _ := hex.DecodeString(clientPrivHex)
+// func DecryptAESGCM(encryptedText []byte,serverPriv *ecdsa.PrivateKey,clientPublic []byte) ([]byte, error) {
+// 	fmt.Println("clientPublic:",hex.EncodeToString(clientPublic))
+// 	curve := elliptic.P256()
+// 	clientPubX, clientPubY := elliptic.Unmarshal(elliptic.P256(), clientPublic)
+// 	x2, _ := curve.ScalarMult(clientPubX, clientPubY, serverPriv.D.Bytes())
+// 	sharedSecret := sha256.Sum256(x2.Bytes())
+// 	//
+// 	block, err := aes.NewCipher(sharedSecret[:16]) // AES-128
+// 	if err != nil {
+// 		return []byte{}, err
+// 	}
+// 	aesGCM, err := cipher.NewGCM(block)
+// 	if err != nil {
+// 		return []byte{}, err
+// 	}
+
+// 	nonceSize := aesGCM.NonceSize()
+// 	if len(encryptedText) < nonceSize {
+// 		return []byte{}, fmt.Errorf("Invalid encrypted data")
+// 	}
+
+// 	nonce, ciphertext := encryptedText[:nonceSize], encryptedText[nonceSize:]
+// 	plaintext, err := aesGCM.Open(nil, nonce, ciphertext, nil)
+// 	if err != nil {
+// 		return []byte{}, err
+// 	}
+
+// 	return plaintext, nil
+// }
+
+func DecryptAESGCM(encryptedText []byte, serverPriv *ecdsa.PrivateKey, clientPublic []byte) ([]byte, error) {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("❌ Recovered from panic in DecryptAESGCM:", r)
+		}
+	}()
+
+	fmt.Println("clientPublic:", hex.EncodeToString(clientPublic))
+
 	curve := elliptic.P256()
-	// clientPriv := new(ecdsa.PrivateKey)
-	// clientPriv.D = new(big.Int).SetBytes(clientPrivBytes)
-	// clientPriv.PublicKey.Curve = curve
-	clientPubX, clientPubY := elliptic.Unmarshal(elliptic.P256(), clientPublic)
-	// if clientPriv.PublicKey.X == nil {
-	// 	log.Fatalf("Invalid clientPublic")
-	// }
-	
-	// sharedSecret, _ := serverPrivate.Curve.ScalarMult(x, y, serverPrivate.D.Bytes())
+	clientPubX, clientPubY := elliptic.Unmarshal(curve, clientPublic)
+	if clientPubX == nil || clientPubY == nil {
+		return nil, fmt.Errorf("invalid client public key")
+	}
+
 	x2, _ := curve.ScalarMult(clientPubX, clientPubY, serverPriv.D.Bytes())
+	if x2 == nil {
+		return nil, fmt.Errorf("failed to compute shared secret")
+	}
+
 	sharedSecret := sha256.Sum256(x2.Bytes())
-	//
+
 	block, err := aes.NewCipher(sharedSecret[:16]) // AES-128
 	if err != nil {
-		return []byte{}, err
+		return nil, fmt.Errorf("NewCipher error: %v", err)
 	}
+
 	aesGCM, err := cipher.NewGCM(block)
 	if err != nil {
-		return []byte{}, err
+		return nil, fmt.Errorf("NewGCM error: %v", err)
 	}
 
 	nonceSize := aesGCM.NonceSize()
 	if len(encryptedText) < nonceSize {
-		return []byte{}, fmt.Errorf("Invalid encrypted data")
+		return nil, fmt.Errorf("invalid encrypted data")
 	}
 
 	nonce, ciphertext := encryptedText[:nonceSize], encryptedText[nonceSize:]
 	plaintext, err := aesGCM.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		return []byte{}, err
+		return nil, fmt.Errorf("decryption failed: %v", err)
 	}
 
 	return plaintext, nil
 }
-

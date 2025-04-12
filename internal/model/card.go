@@ -1,7 +1,7 @@
 package model
 type CardData struct {
-    CardNumber string
-    ExpMonth   string
-    ExpYear    string
-    CVV        string
+    CardNumber string `json:"cardNumber"`
+	ExpMonth   string `json:"expireMonth"`
+    ExpYear    string `json:"expireYear"`
+    CVV        string `json:"cvv"`
 }

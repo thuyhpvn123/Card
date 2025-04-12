@@ -29,6 +29,7 @@ type AppConfig struct {
 	StorageConnectionAddress string
 	AdminAddress string
 	PathLevelDB string
+	ThirdPartyApiUrl string
 }
 
 var Config *AppConfig
