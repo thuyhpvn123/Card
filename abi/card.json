@@ -2,6 +2,29 @@
 	{
 		"inputs": [
 			{
+				"internalType": "bytes32",
+				"name": "tokenId",
+				"type": "bytes32"
+			},
+			{
+				"internalType": "address",
+				"name": "merchant",
+				"type": "address"
+			},
+			{
+				"internalType": "uint256",
+				"name": "amount",
+				"type": "uint256"
+			}
+		],
+		"name": "charge",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
 				"internalType": "address",
 				"name": "_processor",
 				"type": "address"
@@ -9,6 +32,28 @@
 		],
 		"stateMutability": "nonpayable",
 		"type": "constructor"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "owner",
+				"type": "address"
+			}
+		],
+		"name": "OwnableInvalidOwner",
+		"type": "error"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "account",
+				"type": "address"
+			}
+		],
+		"name": "OwnableUnauthorizedAccount",
+		"type": "error"
 	},
 	{
 		"anonymous": false,
@@ -65,6 +110,283 @@
 		],
 		"name": "ChargeRequest",
 		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "beforeTimestamp",
+				"type": "uint256"
+			}
+		],
+		"name": "cleanUsage",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"anonymous": false,
+		"inputs": [
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "previousOwner",
+				"type": "address"
+			},
+			{
+				"indexed": true,
+				"internalType": "address",
+				"name": "newOwner",
+				"type": "address"
+			}
+		],
+		"name": "OwnershipTransferred",
+		"type": "event"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "user",
+				"type": "address"
+			},
+			{
+				"internalType": "bytes32",
+				"name": "requestId",
+				"type": "bytes32"
+			},
+			{
+				"internalType": "string",
+				"name": "reason",
+				"type": "string"
+			}
+		],
+		"name": "rejectToken",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "renounceOwnership",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "bytes",
+				"name": "encryptedCardData",
+				"type": "bytes"
+			},
+			{
+				"internalType": "bytes32",
+				"name": "requestId",
+				"type": "bytes32"
+			}
+		],
+		"name": "requestToken",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_admin",
+				"type": "address"
+			},
+			{
+				"internalType": "bool",
+				"name": "_setOK",
+				"type": "bool"
+			}
+		],
+		"name": "setAdmin",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "bytes",
+				"name": "pubKey",
+				"type": "bytes"
+			}
+		],
+		"name": "setBackendPubKey",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "bytes32",
+				"name": "cardHash",
+				"type": "bytes32"
+			},
+			{
+				"internalType": "bool",
+				"name": "locked",
+				"type": "bool"
+			}
+		],
+		"name": "setCardLocked",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "uint256",
+				"name": "maxPerMinute",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "maxPerHour",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "maxPerDay",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "maxPerWeek",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "maxTotal",
+				"type": "uint256"
+			}
+		],
+		"name": "setGlobalRule",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "bool",
+				"name": "_locked",
+				"type": "bool"
+			}
+		],
+		"name": "setLock",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "string[]",
+				"name": "allowedRegions",
+				"type": "string[]"
+			},
+			{
+				"internalType": "uint256",
+				"name": "maxPerMinute",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "maxPerHour",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "maxPerDay",
+				"type": "uint256"
+			},
+			{
+				"internalType": "uint256",
+				"name": "maxPerWeek",
+				"type": "uint256"
+			},
+			{
+				"internalType": "address",
+				"name": "merchant",
+				"type": "address"
+			}
+		],
+		"name": "setMerchantRule",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "_processor",
+				"type": "address"
+			}
+		],
+		"name": "setProcessor",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "bytes32",
+				"name": "tokenId",
+				"type": "bytes32"
+			},
+			{
+				"internalType": "bool",
+				"name": "active",
+				"type": "bool"
+			}
+		],
+		"name": "setTokenActive",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "user",
+				"type": "address"
+			},
+			{
+				"internalType": "bytes32",
+				"name": "tokenId",
+				"type": "bytes32"
+			},
+			{
+				"internalType": "string",
+				"name": "region",
+				"type": "string"
+			},
+			{
+				"internalType": "bytes32",
+				"name": "requestId",
+				"type": "bytes32"
+			},
+			{
+				"internalType": "bytes32",
+				"name": "cardHash",
+				"type": "bytes32"
+			}
+		],
+		"name": "submitToken",
+		"outputs": [],
+		"stateMutability": "nonpayable",
+		"type": "function"
 	},
 	{
 		"anonymous": false,
@@ -154,16 +476,16 @@
 		"type": "event"
 	},
 	{
-		"inputs": [],
-		"name": "admin",
-		"outputs": [
+		"inputs": [
 			{
 				"internalType": "address",
-				"name": "",
+				"name": "newOwner",
 				"type": "address"
 			}
 		],
-		"stateMutability": "view",
+		"name": "transferOwnership",
+		"outputs": [],
+		"stateMutability": "nonpayable",
 		"type": "function"
 	},
 	{
@@ -313,42 +635,6 @@
 		"type": "function"
 	},
 	{
-		"inputs": [
-			{
-				"internalType": "bytes32",
-				"name": "tokenId",
-				"type": "bytes32"
-			},
-			{
-				"internalType": "address",
-				"name": "merchant",
-				"type": "address"
-			},
-			{
-				"internalType": "uint256",
-				"name": "amount",
-				"type": "uint256"
-			}
-		],
-		"name": "charge",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "beforeTimestamp",
-				"type": "uint256"
-			}
-		],
-		"name": "cleanUsage",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
 		"inputs": [],
 		"name": "getBackendPubKey",
 		"outputs": [
@@ -394,6 +680,25 @@
 				"internalType": "bytes32[]",
 				"name": "",
 				"type": "bytes32[]"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
+			}
+		],
+		"name": "isAdmin",
+		"outputs": [
+			{
+				"internalType": "bool",
+				"name": "",
+				"type": "bool"
 			}
 		],
 		"stateMutability": "view",
@@ -460,6 +765,19 @@
 				"internalType": "uint256",
 				"name": "maxPerWeek",
 				"type": "uint256"
+			}
+		],
+		"stateMutability": "view",
+		"type": "function"
+	},
+	{
+		"inputs": [],
+		"name": "owner",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "",
+				"type": "address"
 			}
 		],
 		"stateMutability": "view",
@@ -542,180 +860,6 @@
 		"type": "function"
 	},
 	{
-		"inputs": [
-			{
-				"internalType": "address",
-				"name": "user",
-				"type": "address"
-			},
-			{
-				"internalType": "bytes32",
-				"name": "requestId",
-				"type": "bytes32"
-			},
-			{
-				"internalType": "string",
-				"name": "reason",
-				"type": "string"
-			}
-		],
-		"name": "rejectToken",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "bytes",
-				"name": "encryptedCardData",
-				"type": "bytes"
-			},
-			{
-				"internalType": "bytes32",
-				"name": "requestId",
-				"type": "bytes32"
-			}
-		],
-		"name": "requestToken",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "bytes",
-				"name": "pubKey",
-				"type": "bytes"
-			}
-		],
-		"name": "setBackendPubKey",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "bytes32",
-				"name": "cardHash",
-				"type": "bytes32"
-			},
-			{
-				"internalType": "bool",
-				"name": "locked",
-				"type": "bool"
-			}
-		],
-		"name": "setCardLocked",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "uint256",
-				"name": "maxPerMinute",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "maxPerHour",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "maxPerDay",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "maxPerWeek",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "maxTotal",
-				"type": "uint256"
-			}
-		],
-		"name": "setGlobalRule",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "bool",
-				"name": "_locked",
-				"type": "bool"
-			}
-		],
-		"name": "setLock",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "string[]",
-				"name": "allowedRegions",
-				"type": "string[]"
-			},
-			{
-				"internalType": "uint256",
-				"name": "maxPerMinute",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "maxPerHour",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "maxPerDay",
-				"type": "uint256"
-			},
-			{
-				"internalType": "uint256",
-				"name": "maxPerWeek",
-				"type": "uint256"
-			},
-			{
-				"internalType": "address",
-				"name": "merchant",
-				"type": "address"
-			}
-		],
-		"name": "setMerchantRule",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "bytes32",
-				"name": "tokenId",
-				"type": "bytes32"
-			},
-			{
-				"internalType": "bool",
-				"name": "active",
-				"type": "bool"
-			}
-		],
-		"name": "setTokenActive",
-		"outputs": [],
-		"stateMutability": "nonpayable",
-		"type": "function"
-	},
-	{
 		"inputs": [],
 		"name": "smRule",
 		"outputs": [
@@ -751,14 +895,17 @@
 	{
 		"inputs": [
 			{
-				"internalType": "address",
-				"name": "user",
-				"type": "address"
-			},
-			{
 				"internalType": "bytes32",
-				"name": "tokenId",
+				"name": "",
 				"type": "bytes32"
+			}
+		],
+		"name": "tokens",
+		"outputs": [
+			{
+				"internalType": "address",
+				"name": "owner",
+				"type": "address"
 			},
 			{
 				"internalType": "string",
@@ -766,9 +913,19 @@
 				"type": "string"
 			},
 			{
-				"internalType": "bytes32",
-				"name": "requestId",
-				"type": "bytes32"
+				"internalType": "uint256",
+				"name": "issuedAt",
+				"type": "uint256"
+			},
+			{
+				"internalType": "bool",
+				"name": "isActive",
+				"type": "bool"
+			},
+			{
+				"internalType": "uint256",
+				"name": "totalUsage",
+				"type": "uint256"
 			},
 			{
 				"internalType": "bytes32",
@@ -776,9 +933,7 @@
 				"type": "bytes32"
 			}
 		],
-		"name": "submitToken",
-		"outputs": [],
-		"stateMutability": "nonpayable",
+		"stateMutability": "view",
 		"type": "function"
 	},
 	{
@@ -896,50 +1051,6 @@
 				"internalType": "uint256",
 				"name": "",
 				"type": "uint256"
-			}
-		],
-		"stateMutability": "view",
-		"type": "function"
-	},
-	{
-		"inputs": [
-			{
-				"internalType": "bytes32",
-				"name": "",
-				"type": "bytes32"
-			}
-		],
-		"name": "tokens",
-		"outputs": [
-			{
-				"internalType": "address",
-				"name": "owner",
-				"type": "address"
-			},
-			{
-				"internalType": "string",
-				"name": "region",
-				"type": "string"
-			},
-			{
-				"internalType": "uint256",
-				"name": "issuedAt",
-				"type": "uint256"
-			},
-			{
-				"internalType": "bool",
-				"name": "isActive",
-				"type": "bool"
-			},
-			{
-				"internalType": "uint256",
-				"name": "totalUsage",
-				"type": "uint256"
-			},
-			{
-				"internalType": "bytes32",
-				"name": "cardHash",
-				"type": "bytes32"
 			}
 		],
 		"stateMutability": "view",

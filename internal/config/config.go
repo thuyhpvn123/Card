@@ -30,6 +30,7 @@ type AppConfig struct {
 	AdminAddress string
 	PathLevelDB string
 	ThirdPartyApiUrl string
+	StoredPubKey string
 }
 
 var Config *AppConfig

@@ -28,6 +28,7 @@ type App struct {
 	StopChan    chan bool
 
 	CardHandler *network.CardHandler
+	StorageClient *client.Client
 }
 
 func NewApp(
@@ -46,7 +47,6 @@ func NewApp(
 		return nil, err
 	}
 	app := &App{}
-
 	app.ChainClient, err = client.NewClient(
 		&c_config.ClientConfig{
 			Version_:                config.MetaNodeVersion,
@@ -63,15 +63,29 @@ func NewApp(
 		logger.Error(fmt.Sprintf("error when create chain client %v", err))
 		return nil, err
 	}
-	listSCAddress := []common.Address{
-		common.HexToAddress(config.CardAddress),
-	}
-	app.EventChan, err = app.ChainClient.Subcribes(
-		common.HexToAddress(config.StorageAddress),
-		listSCAddress,
+	app.StorageClient, err = client.NewClient(
+		&c_config.ClientConfig{
+			Version_:                config.MetaNodeVersion,
+			PrivateKey_:             config.PrivateKey_,
+			ParentAddress:           config.ParentAddress,
+			ParentConnectionAddress: config.ParentConnectionAddress,
+			DnsLink_:                config.DnsLink(),
+			ConnectionAddress_:      config.ConnectionAddress_,
+			ParentConnectionType:    config.ParentConnectionType,
+			ChainId:                 config.ChainId,
+		},
 	)
 	if err != nil {
-		logger.Error(fmt.Sprintf("error when create chain client %v", err))
+		logger.Error(fmt.Sprintf("error when create storage client %v", err))
+		return nil, err
+	}
+	app.EventChan, err = app.StorageClient.Subcribe(
+		common.HexToAddress(config.StorageAddress),
+		common.HexToAddress(config.CardAddress),
+		config.ParentConnectionAddress,
+	)
+	if err != nil {
+		logger.Error(fmt.Sprintf("error when Subcribes %v", err))
 		return nil, err
 	}
 	
@@ -94,6 +108,11 @@ func NewApp(
 		logger.Error("Can not read private key pem file")
 		return nil, err
 	}
+	bserverPublicKey, err := os.ReadFile(config.StoredPubKey)
+	if err != nil {
+		logger.Error("Can not read private key pem file")
+		return nil, err
+	}
 	servs := services.NewSendTransactionService(
 		app.ChainClient,
 		&cardAbi,
@@ -108,6 +127,7 @@ func NewApp(
 		string(bserverPrivateKey),
 		leveldb,
 		config.ThirdPartyApiUrl,
+		string(bserverPublicKey),
 	)
 
 	app.Config = config
@@ -116,7 +136,12 @@ func NewApp(
 
 func (app *App) Run() {
 	app.StopChan = make(chan bool)
-	// app.CardHandler.VerifyPublicKey()
+	if app.CardHandler != nil {
+		// app.CardHandler.VerifyPublicKey()
+	} else {
+		logger.Error("CardHandler is nil. Cannot verify public key")
+		return
+	}
 	for {
 		select {
 		case <-app.StopChan:

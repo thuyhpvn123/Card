@@ -1,17 +1,16 @@
 package network
 
 import (
+	"bytes"
 	"crypto/sha256"
-	"crypto/x509"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	// "math/big"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	e_common "github.com/ethereum/go-ethereum/common"
-
 	"github.com/meta-node-blockchain/meta-node/pkg/logger"
 	"github.com/meta-node-blockchain/meta-node/types"
 	"github.com/meta-node-blockchain/noti-contract/internal/config"
@@ -29,6 +28,7 @@ type CardHandler struct {
 	ServerPrivateKey string
 	DB *leveldb.DB
 	thirdPartyURL string
+	storedPubKey string
 }
 
 func NewCardEventHandler(
@@ -38,6 +38,7 @@ func NewCardEventHandler(
 	ServerPrivateKey string,
 	DB *leveldb.DB,
 	thirdPartyURL string,
+	storedPubKey string,
 ) *CardHandler {
 	return &CardHandler{
 		config:           config,
@@ -46,20 +47,27 @@ func NewCardEventHandler(
 		ServerPrivateKey: ServerPrivateKey,
 		DB : DB,
 		thirdPartyURL:thirdPartyURL,
+		storedPubKey:storedPubKey,
 	}
 }
 func (h *CardHandler) VerifyPublicKey(){
-	// serverPubKey,err := h.service.CallVerifyPublicKey()
-	// if err != nil {
-    //     logger.Error("Không thể lấy khóa công khai từ smart contract: %v", err)
-	// 	return
-    // }
-	// if !bytes.Equal(serverPubKey, h.storedPubKey) {
-    //     logger.Error("Khóa công khai không khớp với smart contract.")
-	// 	return
-    // }
+	serverPubKey,err := h.service.CallVerifyPublicKey()
+	if err != nil {
+        logger.Error("Không thể lấy khóa công khai từ smart contract: %v", err)
+		return
+    }
+	storedPubKeyBytes,err := hex.DecodeString(h.storedPubKey)
+	serverPubKeyBytes,ok := serverPubKey.([]byte)
+	if !ok {
+        logger.Error("Error when parse server PubKey.")
+		return
+	}
+	if !bytes.Equal(serverPubKeyBytes, storedPubKeyBytes) {
+        logger.Error("Khóa công khai không khớp với smart contract.")
+		return
+    }
 
-    // logger.Info("Xác thực khóa công khai thành công.")
+    logger.Info("Xác thực khóa công khai thành công.")
 }
 func (h *CardHandler) HandleConnectSmartContract(events types.EventLogs) {
 	for _, event := range events.EventLogList() {
@@ -85,13 +93,6 @@ func (h *CardHandler) handleTokenRequest(data string) {
 		logger.Error("Lỗi giải mã HEX: %v", err)
 		return
 	}
-
-	// Parse private key from DER format
-	key, err := x509.ParseECPrivateKey(serverPrivateKeyBytes)
-	if err != nil {
-		logger.Error("Lỗi parse private key: %v", err)
-		return
-	}
 	encryptedCardData, ok := result["encryptedCardData"].([]byte)
 	if !ok {
 		logger.Error("fail in parse encryptedCardData :", err)
@@ -101,8 +102,11 @@ func (h *CardHandler) handleTokenRequest(data string) {
 	encyptedCard := encryptedCardData[65:]
 	clientPublicKey := encryptedCardData[:65]
 	fmt.Println("clientPublicKey:",hex.EncodeToString(clientPublicKey))
-	fmt.Println("encyptedCard:",hex.EncodeToString(encyptedCard))
-	token, err := utils.DecryptAESGCM(encyptedCard, key, clientPublicKey)
+	fmt.Println("encyptedCard:",hex.EncodeToString(encyptedCard[16:]))
+	iv := encyptedCard[:16]
+	fmt.Println("iv la:",hex.EncodeToString(iv))
+
+	token, err := utils.DecryptAESCBC(encyptedCard[16:], serverPrivateKeyBytes, clientPublicKey,iv)
 	if err != nil {
 		logger.Error("fail in decrypt token:", err)
 		return
@@ -143,7 +147,7 @@ func (h *CardHandler) handleTokenRequest(data string) {
 	logger.Info("Saved token in db")
 	// if !utils.SendToThirdParty(card, big.NewInt(0), common.Address{},h.thirdPartyURL) {
 	//     logger.Error("❌ Pre-charge failed")
-	//     return
+	//     // return
 	// }
 
 }
@@ -175,17 +179,11 @@ func (h *CardHandler) handleChargeRequest(data string) {
 		logger.Error("Lỗi giải mã HEX: %v", err)
 		return
 	}
-
-	// Parse private key from DER format
-	key, err := x509.ParseECPrivateKey(serverPrivateKeyBytes)
-	if err != nil {
-		logger.Error("Lỗi parse private key: %v", err)
-		return
-	}
 	
 	encyptedCard := encryptedCardData[65:]
 	clientPublicKey := encryptedCardData[:65]
-	token, err := utils.DecryptAESGCM(encyptedCard, key, clientPublicKey)
+	iv := encyptedCard[:16]
+	token, err := utils.DecryptAESCBC(encyptedCard[16:], serverPrivateKeyBytes, clientPublicKey,iv)
 	if err != nil {
 		logger.Error("fail in decrypt token:", err)
 		return
@@ -195,21 +193,21 @@ func (h *CardHandler) handleChargeRequest(data string) {
 		logger.Error("❌ Parse card failed: %v", err)
 		return
 	}
-	// amount, ok := result["amount"].(*big.Int)
-	// if !ok {
-	// 	logger.Error("fail in parse amount:", err)
-	// 	return
-	// }
-	// merchant, ok := result["merchant"].(common.Address)
-	// if !ok {
-	// 	logger.Error("fail in parse merchant:", err)
-	// 	return
-	// }
+	amount, ok := result["amount"].(*big.Int)
+	if !ok {
+		logger.Error("fail in parse amount:", err)
+		return
+	}
+	merchant, ok := result["merchant"].(common.Address)
+	if !ok {
+		logger.Error("fail in parse merchant:", err)
+		return
+	}
 
-	// if !utils.SendToThirdParty(card, amount, merchant,h.thirdPartyURL) {
-	//     logger.Error("❌ Swipe API failed: %v", err)
-	//     return
-	// }
+	if !utils.SendToThirdParty(card, amount, merchant,h.thirdPartyURL) {
+	    logger.Error("❌ Swipe API failed: %v", err)
+	    return
+	}
 
 	
 }

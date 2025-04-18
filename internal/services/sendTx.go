@@ -72,7 +72,7 @@ func (h *sendTransactionService) CallVerifyPublicKey() (interface{}, error) {
 		h.fromAddress,
 		h.cardAddress,
 		big.NewInt(0),
-		4,
+		// 4,
 		bData,
 		relatedAddress,
 		maxGas,
@@ -87,7 +87,7 @@ func (h *sendTransactionService) CallVerifyPublicKey() (interface{}, error) {
 			logger.Error("UnpackIntoMap")
 			return nil, err
 		}
-		result = kq
+		result = kq[""]
 		logger.Info("getBackendPubKey - Result - ", kq)
 	} else {
 		result = hex.EncodeToString(receipt.Return())
@@ -105,7 +105,7 @@ func (h *sendTransactionService) SubmitToken(
 	cardHash [32]byte,
 ) (interface{}, error) {
 	var result interface{}
-	fmt.Println("sender la:",user)
+	fmt.Println("SubmitToken")
 	input, err := h.cardAbi.Pack(
 		"submitToken",
 		user,
@@ -130,11 +130,12 @@ func (h *sendTransactionService) SubmitToken(
 	maxGas := uint64(5_000_000)
 	maxGasPrice := uint64(1_000_000_000)
 	timeUse := uint64(0)
+	fmt.Println("h.fromAddress:",h.fromAddress)
 	receipt, err := h.chainClient.SendTransactionWithDeviceKey(
 		h.fromAddress,
 		h.cardAddress,
 		big.NewInt(0),
-		4,
+		// pb.ACTION_CALL_SMART_CONTRACT,
 		bData,
 		relatedAddress,
 		maxGas,

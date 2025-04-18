@@ -1,25 +1,26 @@
 API_PORT: ":8088"
-MetaNodeVersion: "0.0.0.1"
+MetaNodeVersion: "0.0.1.0"
 DnsLink_: "http://127.0.0.1:7080/api/dns/connection-address/"
 
 ParentAddress: "9065e2caaa4bf6533ded0b2a763e4ee81cd31bd2"
 NodeConnectionAddress: "node"
 ParentConnectionAddress: "0.0.0.0:4200"
-ParentConnectionType: "node"
+ParentConnectionType: "client"
 ConnectionAddress_: "0x1eF5a8c5403c5aA1d43a8DC9eD391351012551Cf"
 ChainId: 991
 
-StorageAddress: "0xda7284faC5E804F8b9d71Aa39310f0f86776b51d"
+StorageAddress: "da7284faC5E804F8b9d71Aa39310f0f86776b51d"
 StorageConnectionAddress: "storage"
 
 PrivateKey_: "2b3aa0f620d2d73c046cd93eb64f2eb687a95b22e278500aa251c8c9dda1203b"
 
 CardABIPath: "../abi/card.json"
-CardAddress: "0x1d6571495F827eB25E2652fea363aeE9dA10528A"
+CardAddress: "0xe161289f6fB910A88B9ACe977A9e25B20261D27c"
 
 ServerPrivateKeyPath: "./private_key"
-AdminAddress: "B50b908fFd42d2eDb12b325e75330c1AaAf35dc0" # Admin Address
+AdminAddress: "030C5fA95e4445E11a17C39cE689beE2f76d31E2" # Admin Address
 
 PathLevelDB: "../db"
 ThirdPartyApiUrl: "https://payment-card.vipn.net/transaction/create"
+StoredPubKey: "./public_key"
 
