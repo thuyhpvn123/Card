@@ -31,6 +31,7 @@ type AppConfig struct {
 	PathLevelDB string
 	ThirdPartyApiUrl string
 	StoredPubKey string
+	RpcURL string
 }
 
 var Config *AppConfig

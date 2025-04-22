@@ -15,7 +15,7 @@ StorageConnectionAddress: "storage"
 PrivateKey_: "2b3aa0f620d2d73c046cd93eb64f2eb687a95b22e278500aa251c8c9dda1203b"
 
 CardABIPath: "../abi/card.json"
-CardAddress: "0xe161289f6fB910A88B9ACe977A9e25B20261D27c"
+CardAddress: "0x544dA8FC5aBae68Aad3cE4AAf0Fc1712f0437ddE"
 
 ServerPrivateKeyPath: "./private_key"
 AdminAddress: "030C5fA95e4445E11a17C39cE689beE2f76d31E2" # Admin Address
@@ -23,4 +23,5 @@ AdminAddress: "030C5fA95e4445E11a17C39cE689beE2f76d31E2" # Admin Address
 PathLevelDB: "../db"
 ThirdPartyApiUrl: "https://payment-card.vipn.net/transaction/create"
 StoredPubKey: "./public_key"
+RpcURL: "http://localhost:8545"
 

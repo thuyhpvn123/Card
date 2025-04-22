@@ -1,4 +1,5 @@
 package model
+
 type CardData struct {
     CardNumber string `json:"cardNumber"`
 	ExpMonth   string `json:"expireMonth"`

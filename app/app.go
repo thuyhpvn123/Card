@@ -10,12 +10,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/meta-node-blockchain/meta-node/cmd/client"
 	"github.com/meta-node-blockchain/meta-node/pkg/logger"
-	"github.com/meta-node-blockchain/meta-node/types"
+	// "github.com/meta-node-blockchain/meta-node/types"
 	"github.com/meta-node-blockchain/noti-contract/internal/network"
 	"github.com/meta-node-blockchain/noti-contract/internal/config"
 		"github.com/meta-node-blockchain/noti-contract/internal/services"
 	c_config "github.com/meta-node-blockchain/meta-node/cmd/client/pkg/config"
 	"github.com/meta-node-blockchain/noti-contract/internal/database"
+	"github.com/meta-node-blockchain/noti-contract/internal/model"
 
 )
 
@@ -24,7 +25,7 @@ type App struct {
 	ApiApp *gin.Engine
 
 	ChainClient *client.Client
-	EventChan   chan types.EventLogs
+	EventChan   chan model.EventLog
 	StopChan    chan bool
 
 	CardHandler *network.CardHandler
@@ -79,16 +80,16 @@ func NewApp(
 		logger.Error(fmt.Sprintf("error when create storage client %v", err))
 		return nil, err
 	}
-	app.EventChan, err = app.StorageClient.Subcribe(
-		common.HexToAddress(config.StorageAddress),
-		common.HexToAddress(config.CardAddress),
-		config.ParentConnectionAddress,
-	)
-	if err != nil {
-		logger.Error(fmt.Sprintf("error when Subcribes %v", err))
-		return nil, err
-	}
-	
+	// app.EventChan, err = app.StorageClient.Subcribe(
+	// 	common.HexToAddress(config.StorageAddress),
+	// 	common.HexToAddress(config.CardAddress),
+	// 	config.ParentConnectionAddress,
+	// )
+	// if err != nil {
+	// 	logger.Error(fmt.Sprintf("error when Subcribes %v", emodelsrr))
+	// 	return nil, err
+	// }
+	app.EventChan = make(chan model.EventLog, 1000) // buffer 100 để tránh nghẽn
 	leveldb, err :=database.Open(config.PathLevelDB)
 	readerHub, err := os.Open(config.CardABIPath)
 	if err != nil {
@@ -128,6 +129,7 @@ func NewApp(
 		leveldb,
 		config.ThirdPartyApiUrl,
 		string(bserverPublicKey),
+		app.EventChan,
 	)
 
 	app.Config = config
@@ -137,17 +139,19 @@ func NewApp(
 func (app *App) Run() {
 	app.StopChan = make(chan bool)
 	if app.CardHandler != nil {
-		// app.CardHandler.VerifyPublicKey()
+		app.CardHandler.VerifyPublicKey()
 	} else {
 		logger.Error("CardHandler is nil. Cannot verify public key")
 		return
 	}
+	go app.CardHandler.ListenEvents() // BẮT ĐẦU LẮNG NGHE EVENT
 	for {
 		select {
 		case <-app.StopChan:
 			return
 		case eventLogs := <-app.EventChan:
-			logger.Debug(eventLogs)
+			fmt.Println("📩 Event Received:", eventLogs)
+			// logger.Debug("📩 Event Received:", eventLogs)
 			app.CardHandler.HandleConnectSmartContract(eventLogs)
 		}
 	}

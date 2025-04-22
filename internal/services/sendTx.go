@@ -145,6 +145,7 @@ func (h *sendTransactionService) SubmitToken(
 	fmt.Println("rc submitToken:", receipt)
 	if receipt.Status() == pb.RECEIPT_STATUS_RETURNED {
 		logger.Info("SubmitToken - Result - Success")
+		result = true
 	} else {
 		result = hex.EncodeToString(receipt.Return())
 		logger.Info("SubmitToken - Result - ", result)
