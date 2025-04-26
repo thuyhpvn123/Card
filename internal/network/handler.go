@@ -2,19 +2,21 @@ package network
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math/big"
 	"os"
+	// "strings"
+	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	e_common "github.com/ethereum/go-ethereum/common"
 	"github.com/meta-node-blockchain/meta-node/pkg/logger"
-	// "github.com/meta-node-blockchain/meta-node/types"
 	"github.com/meta-node-blockchain/noti-contract/internal/config"
 	"github.com/meta-node-blockchain/noti-contract/internal/database"
 	"github.com/meta-node-blockchain/noti-contract/internal/model"
@@ -28,10 +30,12 @@ type CardHandler struct {
 	service          services.SendTransactionService
 	cardABI          *abi.ABI
 	ServerPrivateKey string
-	DB *leveldb.DB
-	thirdPartyURL string
-	storedPubKey string
-	eventChan chan model.EventLog
+	DB               *leveldb.DB
+	thirdPartyURL    string
+	storedPubKey     string
+	eventChan        chan model.EventLog
+	cancelMonitors map[string]context.CancelFunc
+    cancelMu       sync.Mutex
 }
 
 func NewCardEventHandler(
@@ -46,33 +50,34 @@ func NewCardEventHandler(
 ) *CardHandler {
 	return &CardHandler{
 		config:           config,
-		service: service,
+		service:          service,
 		cardABI:          cardABI,
 		ServerPrivateKey: ServerPrivateKey,
-		DB : DB,
-		thirdPartyURL:thirdPartyURL,
-		storedPubKey:storedPubKey,
-		eventChan:eventChan,
+		DB:               DB,
+		thirdPartyURL:    thirdPartyURL,
+		storedPubKey:     storedPubKey,
+		eventChan:        eventChan,
+		cancelMonitors: make(map[string]context.CancelFunc),
 	}
 }
-func (h *CardHandler) VerifyPublicKey(){
-	serverPubKey,err := h.service.CallVerifyPublicKey()
+func (h *CardHandler) VerifyPublicKey() {
+	serverPubKey, err := h.service.CallVerifyPublicKey()
 	if err != nil {
-        logger.Error("Không thể lấy khóa công khai từ smart contract: %v", err)
+		logger.Error("Không thể lấy khóa công khai từ smart contract: %v", err)
 		return
-    }
-	storedPubKeyBytes,err := hex.DecodeString(h.storedPubKey)
-	serverPubKeyBytes,ok := serverPubKey.([]byte)
+	}
+	storedPubKeyBytes, err := hex.DecodeString(h.storedPubKey)
+	serverPubKeyBytes, ok := serverPubKey.([]byte)
 	if !ok {
-        logger.Error("Error when parse server PubKey.")
+		logger.Error("Error when parse server PubKey.")
 		return
 	}
 	if !bytes.Equal(serverPubKeyBytes, storedPubKeyBytes) {
-        logger.Error("Khóa công khai không khớp với smart contract.")
+		logger.Error("Khóa công khai không khớp với smart contract.")
 		return
-    }
+	}
 
-    logger.Info("Xác thực khóa công khai thành công.")
+	logger.Info("Xác thực khóa công khai thành công.")
 }
 func (h *CardHandler) ListenEvents() {
 	go func() {
@@ -126,7 +131,7 @@ func (h *CardHandler) ListenEvents() {
 				lastBlock = block
 
 				// Lặp qua từng topic để lấy log
-				topics := []string{tokenRequestTopic, chargeRequestTopic,chargeRejectedTopic}
+				topics := []string{tokenRequestTopic, chargeRequestTopic, chargeRejectedTopic}
 				for _, topic := range topics {
 					logs, err := utils.GetLogs(rpcURL, block, block, contractAddress, topic)
 					if err != nil {
@@ -150,18 +155,9 @@ func (h *CardHandler) ListenEvents() {
 		}
 	}()
 }
-	
+
 func (h *CardHandler) HandleConnectSmartContract(event model.EventLog) {
-	// for _, event := range events.EventLogList() {
-	// 	switch event.Topics()[0] {
-	// 	case h.cardABI.Events["TokenRequest"].ID.String()[2:]:
-	// 		h.handleTokenRequest(event.Data())
-	// 	case h.cardABI.Events["ChargeRequest"].ID.String()[2:]:
-	// 		h.handleChargeRequest(event.Data())
-	// 	}
-	// }
-	fmt.Println("event la:",event)
-	fmt.Println("id la:",h.cardABI.Events["ChargeRequest"].ID.String())
+	fmt.Println("event la:", event)
 	switch event.Topics[0] {
 	case h.cardABI.Events["TokenRequest"].ID.String():
 		h.handleTokenRequest(event.Data)
@@ -169,9 +165,68 @@ func (h *CardHandler) HandleConnectSmartContract(event model.EventLog) {
 		h.handleChargeRequest(event.Data)
 	case h.cardABI.Events["ChargeRejected"].ID.String():
 		h.handleChargeRejected(event.Data)
-
+	case h.cardABI.Events["RequestUpdateTxStatus"].ID.String():
+		h.handleRequestUpdateTxStatus(event.Data)
 	}
 
+}
+func (h *CardHandler) handleRequestUpdateTxStatus(data string) {
+	fmt.Println("handleRequestUpdateTxStatus")
+	result := make(map[string]interface{})
+	err := h.cardABI.UnpackIntoMap(result, "RequestUpdateTxStatus", e_common.FromHex(data))
+	if err != nil {
+		logger.Error("can't unpack to map", err)
+		return
+	}
+	txID, ok := result["transactionID"].(string)
+	if !ok {
+		logger.Error("fail in parse transactionID RequestUpdateTxStatus :", err)
+		return
+	}
+	tokenId, ok := result["tokenId"].([32]byte)
+	if !ok {
+		logger.Error("fail in parse tokenId RequestUpdateTxStatus:", err)
+		return
+	}
+	h.cancelMu.Lock()
+    if cancel, ok := h.cancelMonitors[txID]; ok {
+        cancel()
+        delete(h.cancelMonitors, txID)
+        logger.Info("✋ Đã yêu cầu dừng monitor giao dịch:", txID)
+    }
+    h.cancelMu.Unlock()
+	kq,err := h.service.GetTx(txID)
+	if err != nil {
+		logger.Error("fail in GetTx", err)
+		return
+	}
+	tx,ok := kq.(map[string]interface{})
+	if !ok {
+		logger.Error("Error when parse GetTx.")
+		return 
+	}
+	status,ok := tx["status"].(uint8)
+	if !ok {
+		logger.Error("Error when parse status handleRequestUpdateTxStatus.")
+		return 
+	}
+	reason,ok := tx["reason"].(string)
+	if !ok {
+		logger.Error("Error when parse reason handleRequestUpdateTxStatus.")
+		return 
+	}
+	
+	if status == 1 {
+		statusQuery := utils.UpdateStatus(txID)
+		atTime := time.Now().Unix()
+		if statusQuery == "success" {
+			h.service.UpdateTxStatus(tokenId,txID, 2, uint64(atTime), "success")
+			return
+		}else {
+			h.service.UpdateTxStatus(tokenId,txID, status, uint64(atTime), reason)
+			return
+		}
+	}
 }
 func (h *CardHandler) handleChargeRejected(data string) {
 	fmt.Println("handleChargeRejected")
@@ -181,11 +236,12 @@ func (h *CardHandler) handleChargeRejected(data string) {
 		logger.Error("can't unpack to map", err)
 		return
 	}
-	// user, ok := result["user"].(common.Address)
-	// if !ok {
-	// 	logger.Error("fail in parse user ChargeRejected :", err)
-	// 	return
-	// }
+	user, ok := result["user"].(common.Address)
+	if !ok {
+		logger.Error("fail in parse user ChargeRejected :", err)
+		return
+	}
+	fmt.Println("handleChargeRejected user:",user)
 	tokenId, ok := result["tokenId"].([32]byte)
 	if !ok {
 		logger.Error("fail in parse tokenId ChargeRejected:", err)
@@ -197,11 +253,11 @@ func (h *CardHandler) handleChargeRejected(data string) {
 		return
 	}
 	kq := map[string]interface{}{
-		// "user": user,
-		"tokenid":tokenId,
-		"reason":reason,
+		"user":    user,
+		"tokenid": tokenId,
+		"reason":  reason,
 	}
-	logger.Info("ChargeRejected:",kq)
+	logger.Info("ChargeRejected:", kq)
 
 }
 func (h *CardHandler) handleTokenRequest(data string) {
@@ -223,15 +279,15 @@ func (h *CardHandler) handleTokenRequest(data string) {
 		logger.Error("fail in parse encryptedCardData :", err)
 		return
 	}
-	fmt.Println("encryptedCardData:",hex.EncodeToString(encryptedCardData))
+	fmt.Println("encryptedCardData:", hex.EncodeToString(encryptedCardData))
 	encyptedCard := encryptedCardData[65:]
 	clientPublicKey := encryptedCardData[:65]
-	fmt.Println("clientPublicKey:",hex.EncodeToString(clientPublicKey))
-	fmt.Println("encyptedCard:",hex.EncodeToString(encyptedCard[16:]))
+	fmt.Println("clientPublicKey:", hex.EncodeToString(clientPublicKey))
+	fmt.Println("encyptedCard:", hex.EncodeToString(encyptedCard[16:]))
 	iv := encyptedCard[:16]
-	fmt.Println("iv la:",hex.EncodeToString(iv))
+	fmt.Println("iv la:", hex.EncodeToString(iv))
 
-	token, err := utils.DecryptAESCBC(encyptedCard[16:], serverPrivateKeyBytes, clientPublicKey,iv)
+	token, err := utils.DecryptAESCBC(encyptedCard[16:], serverPrivateKeyBytes, clientPublicKey, iv)
 	if err != nil {
 		logger.Error("fail in decrypt token:", err)
 		return
@@ -241,10 +297,10 @@ func (h *CardHandler) handleTokenRequest(data string) {
 		logger.Error("❌ Parse card failed: %v", err)
 		return
 	}
-	fmt.Println("card:",card)
-	fmt.Println("expire year request:",card.ExpYear)
-	fmt.Println("user la :",result["user"])
-	fmt.Printf("type %v",result["user"])
+	fmt.Println("card:", card)
+	fmt.Println("expire year request:", card.ExpYear)
+	fmt.Println("user la :", result["user"])
+	fmt.Printf("type %v", result["user"])
 	user, ok := result["user"].(common.Address)
 	if !ok {
 		logger.Error("fail in parse user:", err)
@@ -255,36 +311,30 @@ func (h *CardHandler) handleTokenRequest(data string) {
 		logger.Error("fail in parse requestId:", err)
 		return
 	}
-	fmt.Println("requestId la:",hex.EncodeToString(requestId[:]))
+	fmt.Println("requestId la:", hex.EncodeToString(requestId[:]))
 	tokenId := utils.GenerateTokenID()
-	fmt.Println("tokenId la:",hex.EncodeToString(tokenId[:]))
-	cardHash:= sha256.Sum256([]byte(card.CardNumber + card.ExpMonth + card.ExpYear))
+	fmt.Println("tokenId la:", hex.EncodeToString(tokenId[:]))
+	cardHash := sha256.Sum256([]byte(card.CardNumber + card.ExpMonth + card.ExpYear))
 
 	//api get region bo sung sau
 	region := "VN"
-	kq ,err := h.service.SubmitToken(user,tokenId,region,requestId,cardHash)
+	kq, err := h.service.SubmitToken(user, tokenId, region, requestId, cardHash)
 	if err != nil {
 		logger.Error("fail in SubmitToken:", err)
 		return
-	} 
-	kq1,ok := kq.(bool)
-	if ok && kq1{
-		callmap :=map[string]interface{}{
+	}
+	kq1, ok := kq.(bool)
+	if ok && kq1 {
+		callmap := map[string]interface{}{
 			"key": "token_" + hex.EncodeToString(tokenId[:]),
-			// "data":hex.EncodeToString(encryptedCardData),
-			"data":string(encryptedCardData),
-	
+			"data": string(encryptedCardData),
 		}
-		err = database.WriteValueStorage(callmap,h.DB)
+		err = database.WriteValueStorage(callmap, h.DB)
 		if err != nil {
 			logger.Error("fail in save in leveldb handleTokenRequest:", err)
 			return
 		}
 		logger.Info("Saved token in db")
-		// if !utils.SendToThirdParty(card, big.NewInt(0), common.Address{},h.thirdPartyURL) {
-		//     logger.Error("❌ Pre-charge failed")
-		//     // return
-		// }	
 	}
 
 }
@@ -302,26 +352,25 @@ func (h *CardHandler) handleChargeRequest(data string) {
 		logger.Error("fail in parse tokenId:", err)
 		return
 	}
-	callmap :=map[string]interface{}{
+	callmap := map[string]interface{}{
 		"key": "token_" + hex.EncodeToString(tokenId[:]),
 	}
-	encryptedCardData,err := database.ReadValueStorage(callmap,h.DB)
+	encryptedCardData, err := database.ReadValueStorage(callmap, h.DB)
 	if err != nil {
 		logger.Error("fail in get encryptedCardData in db:", err)
 		return
 	}
-	fmt.Println("encryptedCardData charge la:",string(encryptedCardData))
+	fmt.Println("encryptedCardData charge la:", string(encryptedCardData))
 	// Convert HEX string to bytes
 	serverPrivateKeyBytes, err := hex.DecodeString(h.ServerPrivateKey)
 	if err != nil {
 		logger.Error("Lỗi giải mã HEX: %v", err)
 		return
 	}
-	// encryptedCardData = hex.DecodeString(
 	encyptedCard := encryptedCardData[65:]
 	clientPublicKey := encryptedCardData[:65]
 	iv := encyptedCard[:16]
-	token, err := utils.DecryptAESCBC(encyptedCard[16:], serverPrivateKeyBytes, clientPublicKey,iv)
+	token, err := utils.DecryptAESCBC(encyptedCard[16:], serverPrivateKeyBytes, clientPublicKey, iv)
 	if err != nil {
 		logger.Error("fail in decrypt token ChargeRequest:", err)
 		return
@@ -331,6 +380,7 @@ func (h *CardHandler) handleChargeRequest(data string) {
 		logger.Error("❌ Parse card failed: %v", err)
 		return
 	}
+	fmt.Println("card.CVV:", card.CVV)
 	amount, ok := result["amount"].(*big.Int)
 	if !ok {
 		logger.Error("fail in parse amount:", err)
@@ -341,11 +391,55 @@ func (h *CardHandler) handleChargeRequest(data string) {
 		logger.Error("fail in parse merchant:", err)
 		return
 	}
+	atTime := time.Now().Unix()
+	kq, err := utils.SendToThirdParty(card, amount, merchant, h.thirdPartyURL)
+	if kq.Status == "failed" {
+		logger.Info("❌ Giao dịch thất bại: %s", kq.Message)
+		
+		h.service.UpdateTxStatus(tokenId,kq.TransactionID, 0 , uint64(atTime), kq.Message)
+	}
+	if kq.Status == "being processed" {
+		logger.Info("⏳ Giao dịch đang xử lý...")
+		h.service.UpdateTxStatus(tokenId,kq.TransactionID, 1, uint64(atTime), "being processed")
+		ctx, cancel := context.WithCancel(context.Background())
 
-	if !utils.SendToThirdParty(card, amount, merchant,h.thirdPartyURL) {
-	    logger.Error("❌ Swipe API failed: %v", err)
-	    return
+		h.cancelMu.Lock()
+		if oldCancel, ok := h.cancelMonitors[kq.TransactionID]; ok {
+			oldCancel() // hủy monitor cũ nếu có
+		}
+		h.cancelMonitors[kq.TransactionID] = cancel
+		h.cancelMu.Unlock()
+		go h.monitorTransaction(tokenId,ctx,kq.TransactionID,amount,merchant)
 	}
 
-	
+}
+func (h *CardHandler) monitorTransaction(tokenId [32]byte,ctx context.Context,txID string,parentValue *big.Int,ownerPool common.Address) {
+	// for i := 0; i < 5; i++ {
+	// 	time.Sleep(10 * time.Second)
+	// 	status := utils.UpdateStatus(txID)
+	// 	atTime := time.Now().Unix()
+	// 	if status == "success" {
+	// 		h.service.UpdateTxStatus(txID, 2, uint64(atTime), "success")
+	// 		return
+	// 	}
+	// 	logger.Info("🔄 Vẫn đang kiểm tra...")
+	// }
+	// logger.Info("❗ Hết thời gian kiểm tra.")
+	for i := 0; i < 5; i++ {
+        select {
+        case <-ctx.Done():
+            logger.Info("🛑 Dừng kiểm tra giao dịch:", txID)
+            return
+        case <-time.After(10 * time.Second):
+            status := utils.UpdateStatus(txID)
+            atTime := time.Now().Unix()
+            if status == "success" {
+                h.service.UpdateTxStatus(tokenId,txID, 2, uint64(atTime), "success")
+				h.service.MintUTXO(uint(parentValue.Uint64()),ownerPool)
+                return
+            }
+            logger.Info("🔄 Vẫn đang kiểm tra...")
+        }
+    }
+    logger.Info("❗ Hết thời gian kiểm tra.")
 }

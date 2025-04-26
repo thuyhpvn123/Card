@@ -25,6 +25,20 @@ type SendTransactionService interface {
 		cardHash [32]byte,
 	) (interface{}, error)
 	CallVerifyPublicKey() (interface{}, error) 
+	UpdateTxStatus(
+		tokenid [32]byte,
+		txID string,
+		status uint8,
+		atTime uint64,
+		reason string,
+	) (interface{}, error)
+	GetTx(
+		txID string,
+	) (interface{}, error) 
+	MintUTXO(
+		parentValue uint ,
+		ownerPool common.Address,
+	) (interface{}, error) 
 }
 type sendTransactionService struct {
 	chainClient        *client.Client
@@ -150,6 +164,164 @@ func (h *sendTransactionService) SubmitToken(
 		result = hex.EncodeToString(receipt.Return())
 		logger.Info("SubmitToken - Result - ", result)
 
+	}
+	return result, nil
+}
+func (h *sendTransactionService) UpdateTxStatus(
+	tokenid [32]byte,
+	txID string,
+	status uint8,
+	atTime uint64,
+	reason string,
+) (interface{}, error) {
+	var result interface{}
+	fmt.Println("UpdateTxStatus")
+	input, err := h.cardAbi.Pack(
+		"UpdateTxStatus",
+		tokenid,
+		txID,
+		status,
+		atTime,
+		reason,
+	)
+	if err != nil {
+		logger.Error("error when pack call data UpdateTxStatus", err)
+		return nil, err
+	}
+	callData := transaction.NewCallData(input)
+
+	bData, err := callData.Marshal()
+	if err != nil {
+		logger.Error("error when marshal call data UpdateTxStatus", err)
+		return nil, err
+	}
+	fmt.Println("input: ", hex.EncodeToString(bData))
+	relatedAddress := []e_common.Address{}
+	maxGas := uint64(5_000_000)
+	maxGasPrice := uint64(1_000_000_000)
+	timeUse := uint64(0)
+	fmt.Println("h.fromAddress:",h.fromAddress)
+	receipt, err := h.chainClient.SendTransactionWithDeviceKey(
+		h.fromAddress,
+		h.cardAddress,
+		big.NewInt(0),
+		// pb.ACTION_CALL_SMART_CONTRACT,
+		bData,
+		relatedAddress,
+		maxGas,
+		maxGasPrice,
+		timeUse,
+	)
+	fmt.Println("rc UpdateTxStatus:", receipt)
+	if receipt.Status() == pb.RECEIPT_STATUS_RETURNED {
+		logger.Info("UpdateTxStatus - Result - Success")
+		result = true
+	} else {
+		result = hex.EncodeToString(receipt.Return())
+		logger.Info("UpdateTxStatus - Result - ", result)
+
+	}
+	return result, nil
+}
+func (h *sendTransactionService) GetTx(
+	txID string,
+) (interface{}, error) {
+	var result interface{}
+	fmt.Println("getTx")
+	input, err := h.cardAbi.Pack(
+		"getTx",
+		txID,
+	)
+	if err != nil {
+		logger.Error("error when pack call data getTx", err)
+		return nil, err
+	}
+	callData := transaction.NewCallData(input)
+
+	bData, err := callData.Marshal()
+	if err != nil {
+		logger.Error("error when marshal call data getTx", err)
+		return nil, err
+	}
+	fmt.Println("input: ", hex.EncodeToString(bData))
+	relatedAddress := []e_common.Address{}
+	maxGas := uint64(5_000_000)
+	maxGasPrice := uint64(1_000_000_000)
+	timeUse := uint64(0)
+	fmt.Println("h.fromAddress:",h.fromAddress)
+	receipt, err := h.chainClient.SendTransactionWithDeviceKey(
+		h.fromAddress,
+		h.cardAddress,
+		big.NewInt(0),
+		// pb.ACTION_CALL_SMART_CONTRACT,
+		bData,
+		relatedAddress,
+		maxGas,
+		maxGasPrice,
+		timeUse,
+	)
+	fmt.Println("rc getTx:", receipt)
+	if receipt.Status() == pb.RECEIPT_STATUS_RETURNED {
+		
+		kq := make(map[string]interface{})
+		err = h.cardAbi.UnpackIntoMap(kq, "getTx", receipt.Return())
+		if err != nil {
+			logger.Error("UnpackIntoMap")
+			return nil, err
+		}
+		result = kq["transaction"]
+		logger.Info("getTx - Result - Success")
+	} else {
+		result = hex.EncodeToString(receipt.Return())
+		logger.Info("getTx - Result - ", result)
+	}
+	return result, nil
+}
+func (h *sendTransactionService) MintUTXO(
+	parentValue uint ,
+	ownerPool common.Address,
+) (interface{}, error) {
+	var result interface{}
+	fmt.Println("MintUTXO")
+	input, err := h.cardAbi.Pack(
+		"MintUTXO",
+		parentValue,
+		ownerPool,
+	)
+	if err != nil {
+		logger.Error("error when pack call data MintUTXO", err)
+		return nil, err
+	}
+	callData := transaction.NewCallData(input)
+
+	bData, err := callData.Marshal()
+	if err != nil {
+		logger.Error("error when marshal call data MintUTXO", err)
+		return nil, err
+	}
+	fmt.Println("input: ", hex.EncodeToString(bData))
+	relatedAddress := []e_common.Address{}
+	maxGas := uint64(5_000_000)
+	maxGasPrice := uint64(1_000_000_000)
+	timeUse := uint64(0)
+	fmt.Println("h.fromAddress:",h.fromAddress)
+	receipt, err := h.chainClient.SendTransactionWithDeviceKey(
+		h.fromAddress,
+		h.cardAddress,
+		big.NewInt(0),
+		// pb.ACTION_CALL_SMART_CONTRACT,
+		bData,
+		relatedAddress,
+		maxGas,
+		maxGasPrice,
+		timeUse,
+	)
+	fmt.Println("rc MintUTXO:", receipt)
+	if receipt.Status() == pb.RECEIPT_STATUS_RETURNED {
+		logger.Info("MintUTXO - Result - Success")
+	} else {
+		result = hex.EncodeToString(receipt.Return())
+		logger.Info("MintUTXO - Result - ", result)
 	}
 	return result, nil
 }
