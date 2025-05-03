@@ -102,13 +102,21 @@ func SendToThirdParty(card model.CardData, amount *big.Int, merchant common.Addr
             TransactionID :payload.TxID,
         }
         return result,nil
-    }else if strings.Contains(string(body), "being processed") {
+    } else if containsAny(string(body), []string{"being processed"}) {
         result = model.TxResponse{
             Message       :string(body),
             Status        :"being processed",
             TransactionID :payload.TxID,
         }
         return result,nil
+    } else if containsAny(string(body), []string{"being processed"}) {
+        result = model.TxResponse{
+            Message       :string(body),
+            Status        :"being processed",
+            TransactionID :payload.TxID,
+        }
+        return result,nil
+    
     }else {
         err := json.Unmarshal(body, &result) 
         if err != nil{
@@ -189,15 +197,13 @@ func UpdateStatus(txID string) string {
 
     log.Println("📥 Phản hồi trạng thái:", string(body))
 
-    var result struct {
-        Status string `json:"status"`
-    }
-    if err := json.Unmarshal(body, &result); err != nil {
-        log.Println("❌ Không parse được status:", err)
-        return ""
-    }
+    // var status string 
+    // if err := json.Unmarshal(body, &status); err != nil {
+    //     log.Println("❌ Không parse được status:", err)
+    //     return ""
+    // }
 
-    return result.Status
+    return string(body)
 }
 
 // func callSmartContractUpdate(txID, status string, atTime int64) {
@@ -205,3 +211,11 @@ func UpdateStatus(txID string) string {
 //     log.Printf("📡 Cập nhật trạng thái lên smart contract: %s = %s = %s \n", txID, status,atTime)
 //     // TODO: Gọi contract thực tế bằng Go hoặc thông qua một package như go-ethereum
 // }
+func containsAny(s string, substrings []string) bool {
+    for _, sub := range substrings {
+        if strings.Contains(s, sub) {
+            return true
+        }
+    }
+    return false
+}

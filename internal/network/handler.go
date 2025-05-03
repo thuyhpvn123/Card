@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"strings"
+
 	// "strings"
 	"sync"
 	"time"
@@ -34,8 +36,8 @@ type CardHandler struct {
 	thirdPartyURL    string
 	storedPubKey     string
 	eventChan        chan model.EventLog
-	cancelMonitors map[string]context.CancelFunc
-    cancelMu       sync.Mutex
+	cancelMonitors   map[string]context.CancelFunc
+	cancelMu         sync.Mutex
 }
 
 func NewCardEventHandler(
@@ -57,7 +59,7 @@ func NewCardEventHandler(
 		thirdPartyURL:    thirdPartyURL,
 		storedPubKey:     storedPubKey,
 		eventChan:        eventChan,
-		cancelMonitors: make(map[string]context.CancelFunc),
+		cancelMonitors:   make(map[string]context.CancelFunc),
 	}
 }
 func (h *CardHandler) VerifyPublicKey() {
@@ -189,41 +191,41 @@ func (h *CardHandler) handleRequestUpdateTxStatus(data string) {
 		return
 	}
 	h.cancelMu.Lock()
-    if cancel, ok := h.cancelMonitors[txID]; ok {
-        cancel()
-        delete(h.cancelMonitors, txID)
-        logger.Info("✋ Đã yêu cầu dừng monitor giao dịch:", txID)
-    }
-    h.cancelMu.Unlock()
-	kq,err := h.service.GetTx(txID)
+	if cancel, ok := h.cancelMonitors[txID]; ok {
+		cancel()
+		delete(h.cancelMonitors, txID)
+		logger.Info("✋ Đã yêu cầu dừng monitor giao dịch:", txID)
+	}
+	h.cancelMu.Unlock()
+	kq, err := h.service.GetTx(txID)
 	if err != nil {
 		logger.Error("fail in GetTx", err)
 		return
 	}
-	tx,ok := kq.(map[string]interface{})
+	tx, ok := kq.(map[string]interface{})
 	if !ok {
 		logger.Error("Error when parse GetTx.")
-		return 
+		return
 	}
-	status,ok := tx["status"].(uint8)
+	status, ok := tx["status"].(uint8)
 	if !ok {
 		logger.Error("Error when parse status handleRequestUpdateTxStatus.")
-		return 
+		return
 	}
-	reason,ok := tx["reason"].(string)
+	reason, ok := tx["reason"].(string)
 	if !ok {
 		logger.Error("Error when parse reason handleRequestUpdateTxStatus.")
-		return 
+		return
 	}
-	
+
 	if status == 1 {
 		statusQuery := utils.UpdateStatus(txID)
 		atTime := time.Now().Unix()
 		if statusQuery == "success" {
-			h.service.UpdateTxStatus(tokenId,txID, 2, uint64(atTime), "success")
+			h.service.UpdateTxStatus(tokenId, txID, 2, uint64(atTime), "success")
 			return
-		}else {
-			h.service.UpdateTxStatus(tokenId,txID, status, uint64(atTime), reason)
+		} else {
+			h.service.UpdateTxStatus(tokenId, txID, status, uint64(atTime), reason)
 			return
 		}
 	}
@@ -241,7 +243,7 @@ func (h *CardHandler) handleChargeRejected(data string) {
 		logger.Error("fail in parse user ChargeRejected :", err)
 		return
 	}
-	fmt.Println("handleChargeRejected user:",user)
+	fmt.Println("handleChargeRejected user:", user)
 	tokenId, ok := result["tokenId"].([32]byte)
 	if !ok {
 		logger.Error("fail in parse tokenId ChargeRejected:", err)
@@ -326,7 +328,7 @@ func (h *CardHandler) handleTokenRequest(data string) {
 	kq1, ok := kq.(bool)
 	if ok && kq1 {
 		callmap := map[string]interface{}{
-			"key": "token_" + hex.EncodeToString(tokenId[:]),
+			"key":  "token_" + hex.EncodeToString(tokenId[:]),
 			"data": string(encryptedCardData),
 		}
 		err = database.WriteValueStorage(callmap, h.DB)
@@ -395,12 +397,12 @@ func (h *CardHandler) handleChargeRequest(data string) {
 	kq, err := utils.SendToThirdParty(card, amount, merchant, h.thirdPartyURL)
 	if kq.Status == "failed" {
 		logger.Info("❌ Giao dịch thất bại: %s", kq.Message)
-		
-		h.service.UpdateTxStatus(tokenId,kq.TransactionID, 0 , uint64(atTime), kq.Message)
+
+		h.service.UpdateTxStatus(tokenId, kq.TransactionID, 0, uint64(atTime), kq.Message)
 	}
 	if kq.Status == "being processed" {
 		logger.Info("⏳ Giao dịch đang xử lý...")
-		h.service.UpdateTxStatus(tokenId,kq.TransactionID, 1, uint64(atTime), "being processed")
+		h.service.UpdateTxStatus(tokenId, kq.TransactionID, 1, uint64(atTime), "being processed")
 		ctx, cancel := context.WithCancel(context.Background())
 
 		h.cancelMu.Lock()
@@ -409,11 +411,11 @@ func (h *CardHandler) handleChargeRequest(data string) {
 		}
 		h.cancelMonitors[kq.TransactionID] = cancel
 		h.cancelMu.Unlock()
-		go h.monitorTransaction(tokenId,ctx,kq.TransactionID,amount,merchant)
+		go h.monitorTransaction(tokenId, ctx, kq.TransactionID, amount, merchant)
 	}
 
 }
-func (h *CardHandler) monitorTransaction(tokenId [32]byte,ctx context.Context,txID string,parentValue *big.Int,ownerPool common.Address) {
+func (h *CardHandler) monitorTransaction(tokenId [32]byte, ctx context.Context, txID string, parentValue *big.Int, ownerPool common.Address) {
 	// for i := 0; i < 5; i++ {
 	// 	time.Sleep(10 * time.Second)
 	// 	status := utils.UpdateStatus(txID)
@@ -426,20 +428,29 @@ func (h *CardHandler) monitorTransaction(tokenId [32]byte,ctx context.Context,tx
 	// }
 	// logger.Info("❗ Hết thời gian kiểm tra.")
 	for i := 0; i < 5; i++ {
-        select {
-        case <-ctx.Done():
-            logger.Info("🛑 Dừng kiểm tra giao dịch:", txID)
-            return
-        case <-time.After(10 * time.Second):
-            status := utils.UpdateStatus(txID)
-            atTime := time.Now().Unix()
-            if status == "success" {
-                h.service.UpdateTxStatus(tokenId,txID, 2, uint64(atTime), "success")
-				h.service.MintUTXO(uint(parentValue.Uint64()),ownerPool)
-                return
-            }
-            logger.Info("🔄 Vẫn đang kiểm tra...")
-        }
-    }
-    logger.Info("❗ Hết thời gian kiểm tra.")
+		select {
+		case <-ctx.Done():
+			logger.Info("🛑 Dừng kiểm tra giao dịch:", txID)
+			return
+		case <-time.After(10 * time.Second):
+			status := utils.UpdateStatus(txID)
+			atTime := time.Now().Unix()
+			if status == "success" {
+				kq, err := h.service.UpdateTxStatus(tokenId, txID, 2, uint64(atTime), "success")
+				result, ok := kq.(bool)
+				if err == nil && ok && result {
+					h.service.MintUTXO(parentValue, ownerPool, txID)
+				}
+
+				return
+			}
+			if strings.Contains(status, "transaction not exists"){
+				h.service.UpdateTxStatus(tokenId, txID, 0, uint64(atTime), "fail")
+				return
+			}
+
+			logger.Info("🔄 Vẫn đang kiểm tra...")
+		}
+	}
+	logger.Info("❗ Hết thời gian kiểm tra.")
 }

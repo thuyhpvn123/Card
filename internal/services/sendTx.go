@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/meta-node-blockchain/meta-node/pkg/logger"
 	pb "github.com/meta-node-blockchain/meta-node/pkg/proto"
 	"github.com/meta-node-blockchain/meta-node/pkg/transaction"
-	"github.com/meta-node-blockchain/meta-node/pkg/logger"
 
 	"github.com/meta-node-blockchain/meta-node/cmd/client"
 
@@ -24,7 +24,7 @@ type SendTransactionService interface {
 		requestId [32]byte,
 		cardHash [32]byte,
 	) (interface{}, error)
-	CallVerifyPublicKey() (interface{}, error) 
+	CallVerifyPublicKey() (interface{}, error)
 	UpdateTxStatus(
 		tokenid [32]byte,
 		txID string,
@@ -34,14 +34,15 @@ type SendTransactionService interface {
 	) (interface{}, error)
 	GetTx(
 		txID string,
-	) (interface{}, error) 
+	) (interface{}, error)
 	MintUTXO(
-		parentValue uint ,
+		parentValue *big.Int,
 		ownerPool common.Address,
-	) (interface{}, error) 
+		txID string,
+	) (interface{}, error)
 }
 type sendTransactionService struct {
-	chainClient        *client.Client
+	chainClient *client.Client
 	cardAbi     *abi.ABI
 	cardAddress e_common.Address
 	fromAddress e_common.Address
@@ -54,7 +55,7 @@ func NewSendTransactionService(
 	fromAddress e_common.Address,
 ) SendTransactionService {
 	return &sendTransactionService{
-		chainClient:        chainClient,
+		chainClient: chainClient,
 		cardAbi:     cardAbi,
 		cardAddress: cardAddress,
 		fromAddress: fromAddress,
@@ -144,7 +145,7 @@ func (h *sendTransactionService) SubmitToken(
 	maxGas := uint64(5_000_000)
 	maxGasPrice := uint64(1_000_000_000)
 	timeUse := uint64(0)
-	fmt.Println("h.fromAddress:",h.fromAddress)
+	fmt.Println("h.fromAddress:", h.fromAddress)
 	receipt, err := h.chainClient.SendTransactionWithDeviceKey(
 		h.fromAddress,
 		h.cardAddress,
@@ -200,7 +201,7 @@ func (h *sendTransactionService) UpdateTxStatus(
 	maxGas := uint64(5_000_000)
 	maxGasPrice := uint64(1_000_000_000)
 	timeUse := uint64(0)
-	fmt.Println("h.fromAddress:",h.fromAddress)
+	fmt.Println("h.fromAddress:", h.fromAddress)
 	receipt, err := h.chainClient.SendTransactionWithDeviceKey(
 		h.fromAddress,
 		h.cardAddress,
@@ -248,7 +249,7 @@ func (h *sendTransactionService) GetTx(
 	maxGas := uint64(5_000_000)
 	maxGasPrice := uint64(1_000_000_000)
 	timeUse := uint64(0)
-	fmt.Println("h.fromAddress:",h.fromAddress)
+	fmt.Println("h.fromAddress:", h.fromAddress)
 	receipt, err := h.chainClient.SendTransactionWithDeviceKey(
 		h.fromAddress,
 		h.cardAddress,
@@ -262,7 +263,7 @@ func (h *sendTransactionService) GetTx(
 	)
 	fmt.Println("rc getTx:", receipt)
 	if receipt.Status() == pb.RECEIPT_STATUS_RETURNED {
-		
+
 		kq := make(map[string]interface{})
 		err = h.cardAbi.UnpackIntoMap(kq, "getTx", receipt.Return())
 		if err != nil {
@@ -278,8 +279,9 @@ func (h *sendTransactionService) GetTx(
 	return result, nil
 }
 func (h *sendTransactionService) MintUTXO(
-	parentValue uint ,
+	parentValue *big.Int,
 	ownerPool common.Address,
+	txID string,
 ) (interface{}, error) {
 	var result interface{}
 	fmt.Println("MintUTXO")
@@ -287,6 +289,7 @@ func (h *sendTransactionService) MintUTXO(
 		"MintUTXO",
 		parentValue,
 		ownerPool,
+		txID,
 	)
 	if err != nil {
 		logger.Error("error when pack call data MintUTXO", err)
@@ -304,7 +307,7 @@ func (h *sendTransactionService) MintUTXO(
 	maxGas := uint64(5_000_000)
 	maxGasPrice := uint64(1_000_000_000)
 	timeUse := uint64(0)
-	fmt.Println("h.fromAddress:",h.fromAddress)
+	fmt.Println("h.fromAddress:", h.fromAddress)
 	receipt, err := h.chainClient.SendTransactionWithDeviceKey(
 		h.fromAddress,
 		h.cardAddress,
@@ -318,6 +321,16 @@ func (h *sendTransactionService) MintUTXO(
 	)
 	fmt.Println("rc MintUTXO:", receipt)
 	if receipt.Status() == pb.RECEIPT_STATUS_RETURNED {
+		kq := make(map[string]interface{})
+		err = h.cardAbi.UnpackIntoMap(kq, "MintUTXO", receipt.Return())
+		if err != nil {
+			logger.Error("UnpackIntoMap MintUTXO")
+			return nil, err
+		}
+		newPool := kq["newPool"]
+		parentHash := kq["newPool"]
+		fmt.Println("newPool:", newPool)
+		fmt.Println("parentHash:", parentHash)
 		logger.Info("MintUTXO - Result - Success")
 	} else {
 		result = hex.EncodeToString(receipt.Return())
