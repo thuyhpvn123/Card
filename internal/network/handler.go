@@ -62,6 +62,15 @@ func NewCardEventHandler(
 		cancelMonitors:   make(map[string]context.CancelFunc),
 	}
 }
+// func (h *CardHandler) GetPoolInfo() {
+// 	kq, err := h.service.GetPoolInfo("tx_afbc7147acc")
+// 	if err != nil {
+// 		logger.Error("GetPoolInfo fail: %v", err)
+// 		return
+// 	}
+// 	fmt.Println("GetPoolInfo:",kq)
+// }
+
 func (h *CardHandler) VerifyPublicKey() {
 	serverPubKey, err := h.service.CallVerifyPublicKey()
 	if err != nil {
@@ -342,6 +351,7 @@ func (h *CardHandler) handleTokenRequest(data string) {
 }
 
 func (h *CardHandler) handleChargeRequest(data string) {
+	start := time.Now() 
 	fmt.Println("handleChargeRequest")
 	result := make(map[string]interface{})
 	err := h.cardABI.UnpackIntoMap(result, "ChargeRequest", e_common.FromHex(data))
@@ -393,14 +403,20 @@ func (h *CardHandler) handleChargeRequest(data string) {
 		logger.Error("fail in parse merchant:", err)
 		return
 	}
+	fmt.Println("⏱️ Tổng thời gian111111111:", time.Since(start))
 	atTime := time.Now().Unix()
 	kq, err := utils.SendToThirdParty(card, amount, merchant, h.thirdPartyURL)
-	if kq.Status == "failed" {
+	fmt.Println("⏱️ Tổng thời gian22222222:", time.Since(start))
+	if kq.Status == "failed" && !strings.Contains(kq.Message, "Transaction failed, pending"){
 		logger.Info("❌ Giao dịch thất bại: %s", kq.Message)
 
 		h.service.UpdateTxStatus(tokenId, kq.TransactionID, 0, uint64(atTime), kq.Message)
-	}
-	if kq.Status == "being processed" {
+	}else if kq.Status == "success"{
+		go h.service.UpdateTxStatus(tokenId, kq.TransactionID, 2, uint64(atTime), "success")
+		go h.service.MintUTXO(amount, merchant, kq.TransactionID)
+		fmt.Println("⏱️ Tổng thời gian4444444444:", time.Since(start))
+	}else{
+		// kq.Status == "being processed" || (kq.Status == "failed" && strings.Contains(kq.Message, "Transaction failed, pending") ){
 		logger.Info("⏳ Giao dịch đang xử lý...")
 		h.service.UpdateTxStatus(tokenId, kq.TransactionID, 1, uint64(atTime), "being processed")
 		ctx, cancel := context.WithCancel(context.Background())
@@ -411,43 +427,42 @@ func (h *CardHandler) handleChargeRequest(data string) {
 		}
 		h.cancelMonitors[kq.TransactionID] = cancel
 		h.cancelMu.Unlock()
-		go h.monitorTransaction(tokenId, ctx, kq.TransactionID, amount, merchant)
+		go h.monitorTransaction(tokenId, ctx, kq.TransactionID, amount, merchant,start)
 	}
-
 }
-func (h *CardHandler) monitorTransaction(tokenId [32]byte, ctx context.Context, txID string, parentValue *big.Int, ownerPool common.Address) {
-	// for i := 0; i < 5; i++ {
-	// 	time.Sleep(10 * time.Second)
-	// 	status := utils.UpdateStatus(txID)
-	// 	atTime := time.Now().Unix()
-	// 	if status == "success" {
-	// 		h.service.UpdateTxStatus(txID, 2, uint64(atTime), "success")
-	// 		return
-	// 	}
-	// 	logger.Info("🔄 Vẫn đang kiểm tra...")
-	// }
-	// logger.Info("❗ Hết thời gian kiểm tra.")
+func (h *CardHandler) monitorTransaction(tokenId [32]byte, ctx context.Context, txID string, parentValue *big.Int, ownerPool common.Address,start time.Time) {
 	for i := 0; i < 5; i++ {
 		select {
 		case <-ctx.Done():
 			logger.Info("🛑 Dừng kiểm tra giao dịch:", txID)
 			return
-		case <-time.After(10 * time.Second):
+		case <-time.After(1 * time.Second):
 			status := utils.UpdateStatus(txID)
 			atTime := time.Now().Unix()
+			fmt.Println("⏱️ Tổng thời gian5555555555:", time.Since(start))
 			if status == "success" {
-				kq, err := h.service.UpdateTxStatus(tokenId, txID, 2, uint64(atTime), "success")
-				result, ok := kq.(bool)
-				if err == nil && ok && result {
-					h.service.MintUTXO(parentValue, ownerPool, txID)
-				}
+				// kq, err := h.service.UpdateTxStatus(tokenId, txID, 2, uint64(atTime), "success")
+				// result, ok := kq.(bool)
+				// if err == nil && ok && result {
+				// 	h.service.MintUTXO(parentValue, ownerPool, txID)
+				// }
+				h.service.UpdateTxStatus(tokenId, txID, 2, uint64(atTime), "success")
+				fmt.Println("⏱️ Tổng thời gian666666666666:", time.Since(start))
+				start1 := time.Now() 
+				kq,_ := h.service.MintUTXO(parentValue, ownerPool, txID)
+				fmt.Println("Done",kq)
+				
+				fmt.Println("⏱️ Tổng thời gian7777777777:", time.Since(start1))
+				h.service.GetPoolInfo(txID)
+				fmt.Println("⏱️ Tổng thời giankkkkkkkkkk:", time.Since(start1))
+				fmt.Println("⏱️ Tổng thời gian:", time.Since(start))
+				return
+			}
 
-				return
-			}
-			if strings.Contains(status, "transaction not exists"){
-				h.service.UpdateTxStatus(tokenId, txID, 0, uint64(atTime), "fail")
-				return
-			}
+			// if strings.Contains(status,"transaction not exists") {
+			// 	h.service.UpdateTxStatus(tokenId, txID, 0, uint64(atTime), "fail")
+			// 	return
+			// }
 
 			logger.Info("🔄 Vẫn đang kiểm tra...")
 		}

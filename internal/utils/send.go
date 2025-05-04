@@ -108,15 +108,7 @@ func SendToThirdParty(card model.CardData, amount *big.Int, merchant common.Addr
             Status        :"being processed",
             TransactionID :payload.TxID,
         }
-        return result,nil
-    } else if containsAny(string(body), []string{"being processed"}) {
-        result = model.TxResponse{
-            Message       :string(body),
-            Status        :"being processed",
-            TransactionID :payload.TxID,
-        }
-        return result,nil
-    
+        return result,nil    
     }else {
         err := json.Unmarshal(body, &result) 
         if err != nil{

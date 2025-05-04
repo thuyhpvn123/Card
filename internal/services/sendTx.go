@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math/big"
+	"time"
 
 	"github.com/meta-node-blockchain/meta-node/pkg/logger"
 	pb "github.com/meta-node-blockchain/meta-node/pkg/proto"
@@ -38,6 +39,9 @@ type SendTransactionService interface {
 	MintUTXO(
 		parentValue *big.Int,
 		ownerPool common.Address,
+		txID string,
+	) (interface{}, error)
+	GetPoolInfo(
 		txID string,
 	) (interface{}, error)
 }
@@ -177,6 +181,7 @@ func (h *sendTransactionService) UpdateTxStatus(
 ) (interface{}, error) {
 	var result interface{}
 	fmt.Println("UpdateTxStatus")
+	start1 := time.Now()
 	input, err := h.cardAbi.Pack(
 		"UpdateTxStatus",
 		tokenid,
@@ -214,6 +219,8 @@ func (h *sendTransactionService) UpdateTxStatus(
 		timeUse,
 	)
 	fmt.Println("rc UpdateTxStatus:", receipt)
+	fmt.Println("⏱️ Tổng thời gian999999999:", time.Since(start1))
+
 	if receipt.Status() == pb.RECEIPT_STATUS_RETURNED {
 		logger.Info("UpdateTxStatus - Result - Success")
 		result = true
@@ -284,6 +291,7 @@ func (h *sendTransactionService) MintUTXO(
 	txID string,
 ) (interface{}, error) {
 	var result interface{}
+	start1 := time.Now()
 	fmt.Println("MintUTXO")
 	input, err := h.cardAbi.Pack(
 		"MintUTXO",
@@ -336,5 +344,64 @@ func (h *sendTransactionService) MintUTXO(
 		result = hex.EncodeToString(receipt.Return())
 		logger.Info("MintUTXO - Result - ", result)
 	}
+	fmt.Println("⏱️ Tổng thời gian88888888888:", time.Since(start1))
+
 	return result, nil
 }
+func (h *sendTransactionService) GetPoolInfo(
+	txID string,
+) (interface{}, error) {
+	var result interface{}
+	fmt.Println("GetPoolInfo")
+	start1 := time.Now()
+	input, err := h.cardAbi.Pack(
+		"getPoolInfo",
+		txID,
+	)
+	if err != nil {
+		logger.Error("error when pack call data getPoolInfo", err)
+		return nil, err
+	}
+	callData := transaction.NewCallData(input)
+
+	bData, err := callData.Marshal()
+	if err != nil {
+		logger.Error("error when marshal call data getPoolInfo", err)
+		return nil, err
+	}
+	fmt.Println("input: ", hex.EncodeToString(bData))
+	relatedAddress := []e_common.Address{}
+	maxGas := uint64(5_000_000)
+	maxGasPrice := uint64(1_000_000_000)
+	timeUse := uint64(0)
+	fmt.Println("h.fromAddress:", h.fromAddress)
+	receipt, err := h.chainClient.SendTransactionWithDeviceKey(
+		h.fromAddress,
+		h.cardAddress,
+		big.NewInt(0),
+		// pb.ACTION_CALL_SMART_CONTRACT,
+		bData,
+		relatedAddress,
+		maxGas,
+		maxGasPrice,
+		timeUse,
+	)
+	fmt.Println("rc getPoolInfo:", receipt)
+	fmt.Println("⏱️ Tổng thời gianpppppppppp:", time.Since(start1))
+	if receipt.Status() == pb.RECEIPT_STATUS_RETURNED {
+
+		kq := make(map[string]interface{})
+		err = h.cardAbi.UnpackIntoMap(kq, "getPoolInfo", receipt.Return())
+		if err != nil {
+			logger.Error("UnpackIntoMap")
+			return nil, err
+		}
+		result = kq["transaction"]
+		logger.Info("getPoolInfo - Result - Success")
+	} else {
+		result = hex.EncodeToString(receipt.Return())
+		logger.Info("getPoolInfo - Result - ", result)
+	}
+	return result, nil
+}
+

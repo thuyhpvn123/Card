@@ -140,6 +140,7 @@ func (app *App) Run() {
 	app.StopChan = make(chan bool)
 	if app.CardHandler != nil {
 		app.CardHandler.VerifyPublicKey()
+		// app.CardHandler.GetPoolInfo()
 	} else {
 		logger.Error("CardHandler is nil. Cannot verify public key")
 		return
@@ -153,6 +154,7 @@ func (app *App) Run() {
 			fmt.Println("📩 Event Received:", eventLogs)
 			// logger.Debug("📩 Event Received:", eventLogs)
 			app.CardHandler.HandleConnectSmartContract(eventLogs)
+			
 		}
 	}
 }
