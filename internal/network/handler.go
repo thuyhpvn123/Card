@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"strconv"
 	"strings"
 
 	// "strings"
@@ -18,13 +19,14 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	e_common "github.com/ethereum/go-ethereum/common"
-	"github.com/meta-node-blockchain/meta-node/pkg/logger"
 	"github.com/meta-node-blockchain/cardvisa/internal/config"
 	"github.com/meta-node-blockchain/cardvisa/internal/database"
 	"github.com/meta-node-blockchain/cardvisa/internal/model"
 	"github.com/meta-node-blockchain/cardvisa/internal/services"
 	"github.com/meta-node-blockchain/cardvisa/internal/utils"
+	"github.com/meta-node-blockchain/meta-node/pkg/logger"
 	"github.com/syndtr/goleveldb/leveldb"
+
 )
 
 type CardHandler struct {
@@ -62,14 +64,6 @@ func NewCardEventHandler(
 		cancelMonitors:   make(map[string]context.CancelFunc),
 	}
 }
-// func (h *CardHandler) GetPoolInfo() {
-// 	kq, err := h.service.GetPoolInfo("tx_afbc7147acc")
-// 	if err != nil {
-// 		logger.Error("GetPoolInfo fail: %v", err)
-// 		return
-// 	}
-// 	fmt.Println("GetPoolInfo:",kq)
-// }
 
 func (h *CardHandler) VerifyPublicKey() {
 	serverPubKey, err := h.service.CallVerifyPublicKey()
@@ -122,29 +116,44 @@ func (h *CardHandler) ListenEvents() {
 			return
 		}
 
-		var lastBlock string
+		// var lastBlock string
+		// Lấy last block từ DB (nếu có)
+		var fromBlock uint64 = 0
+		callmap := map[string]interface{}{
+			"key": "lastBlock",
+		}
+		lastBlockBytes, err := database.ReadValueStorage(callmap, h.DB)
+	
+		if err == nil {
+			fromBlock, _ = strconv.ParseUint(string(lastBlockBytes), 0, 64)
+		}
 
 		for {
 			select {
 			default:
 				// Lấy latest block
-				block, err := utils.GetLatestBlockNumber(rpcURL)
+				latestBlock, err := utils.GetLatestBlockNumber(rpcURL)
 				if err != nil {
 					logger.Error("Failed to get latest block:", err)
 					time.Sleep(2 * time.Second)
 					continue
 				}
 
-				if block == lastBlock {
+				latestBlockUint, _ := strconv.ParseUint(latestBlock, 0, 64)
+				if latestBlockUint <= fromBlock {
 					time.Sleep(1 * time.Second)
 					continue
 				}
-				lastBlock = block
 
 				// Lặp qua từng topic để lấy log
 				topics := []string{tokenRequestTopic, chargeRequestTopic, chargeRejectedTopic}
 				for _, topic := range topics {
-					logs, err := utils.GetLogs(rpcURL, block, block, contractAddress, topic)
+					logs, err := utils.GetLogs(
+						rpcURL, 
+						fmt.Sprintf("0x%x", fromBlock+1), 
+						fmt.Sprintf("0x%x", latestBlockUint), 
+						contractAddress, 
+						topic)
 					if err != nil {
 						logger.Error("Error fetching logs for topic", topic, ":", err)
 						time.Sleep(1 * time.Second)
@@ -160,6 +169,16 @@ func (h *CardHandler) ListenEvents() {
 						h.eventChan <- log
 					}
 				}
+				callmap := map[string]interface{}{
+					"key":  "lastBlock",
+					"data": (strconv.FormatUint(latestBlockUint, 10)),
+				}
+				err = database.WriteValueStorage(callmap, h.DB)
+		
+				if err != nil {
+					logger.Error("Failed to save lastBlock to DB:", err)
+				}
+				fromBlock = latestBlockUint
 
 				time.Sleep(1 * time.Second)
 			}
