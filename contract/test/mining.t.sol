@@ -125,6 +125,7 @@ contract MiningContractsTest is Test {
         function testRefUserViaQRCodeAndProcessUserWithOTP() public {
         vm.warp(currentTime);
         address userA = 0x043E61E490EC76Aa636758D72A15201923593C72;
+        // address userA = 0xdf182ed5CF7D29F072C429edd8BFCf9C4151394B;
         // Create referral signature
         string memory token = "cvDcIPJQTimmy22dsznjUs:APA91bGAT9ONKBckTc4Uv1E_7SOrfgVJkjn-1AwT1wkBpSkGyQeooJ64RpPbDVSU_y7CIqS-X5vVmQFooXq_ACBnhJ32NRoCyh2GliS2Ogrl3ORZyOiZ4c8";
         // bytes32 message = keccak256(abi.encodePacked(token));
@@ -132,6 +133,8 @@ contract MiningContractsTest is Test {
         // (uint8 v, bytes32 r, bytes32 s) = vm.sign(user1PrivateKey, message);
         // bytes memory signature = abi.encodePacked(r, s, v);
         bytes memory signature = hex"3ffd9a78be168c573d15a2dd7fc90ade3cc4d667a5615ac645eb195c94b3f2a32a9f50f8a9c4c6c70942c1cd82a00b87bbf0fcdf40f642280dab38d1980bf13b00";
+        // bytes memory signature = hex"5eaed28525b8427b950dd913fe01dfb28c89eb1545f968c2de0469802e35043401863a99f48427a70c8894fef06c3c286509d4ece9675f1e74f509277f9cbbea01";
+
         // Refer userA by user2( user2 gioi thieu userA)
         vm.prank(user2);//nguoi gioi thieu
         miningUser.refUserViaQRCode(userA, signature, token);
@@ -298,26 +301,38 @@ contract MiningContractsTest is Test {
     }
 
     function GetByteCode()public{
-        //refUserViaQRCode
-        // address userA = 0x043E61E490EC76Aa636758D72A15201923593C72;
-        // string memory token = "cvDcIPJQTimmy22dsznjUs:APA91bGAT9ONKBckTc4Uv1E_7SOrfgVJkjn-1AwT1wkBpSkGyQeooJ64RpPbDVSU_y7CIqS-X5vVmQFooXq_ACBnhJ32NRoCyh2GliS2Ogrl3ORZyOiZ4c8";
-        // bytes memory signature = hex"3ffd9a78be168c573d15a2dd7fc90ade3cc4d667a5615ac645eb195c94b3f2a32a9f50f8a9c4c6c70942c1cd82a00b87bbf0fcdf40f642280dab38d1980bf13b00";
-        // // Refer user2 by user1
-        // vm.prank(user2);
-        // miningUser.refUserViaQRCode(userA, signature, token);
-        // bytes memory bytesCodeCall = abi.encodeCall(
-        //     miningUser.refUserViaQRCode,
-        //     (userA, signature, token)
-        // );
-        // console.log("miningUser refUserViaQRCode: ");
-        // console.logBytes(bytesCodeCall);
-        // console.log(
-        //     "-----------------------------------------------------------------------------"
-        // );
+        // refUserViaQRCode
+        address userA = 0xdf182ed5CF7D29F072C429edd8BFCf9C4151394B;
+        string memory token = "cvDcIPJQTimmy22dsznjUs:APA91bGAT9ONKBckTc4Uv1E_7SOrfgVJkjn-1AwT1wkBpSkGyQeooJ64RpPbDVSU_y7CIqS-X5vVmQFooXq_ACBnhJ32NRoCyh2GliS2Ogrl3ORZyOiZ4c8";
+        bytes memory signature = hex"5eaed28525b8427b950dd913fe01dfb28c89eb1545f968c2de0469802e35043401863a99f48427a70c8894fef06c3c286509d4ece9675f1e74f509277f9cbbea01";
+        // Refer user2 by user1
+        vm.prank(user2);
+        bytes memory bytesCodeCall = abi.encodeCall(
+            miningUser.refUserViaQRCode,
+            (userA, signature, token)
+        );
+        console.log("miningUser refUserViaQRCode: ");
+        console.logBytes(bytesCodeCall);
+        console.log(
+            "-----------------------------------------------------------------------------"
+        );
+        //processUserWithOTP
+        address parent1 = 0xA620249dc17f23887226506b3eB260f4802a7efc;
+        bytes32 otp1 = 0xd44b316023d9f87f06e62f767ec2e735d3e4f0af55a9034b952f72022aba053c;
+
+        bytesCodeCall = abi.encodeCall(
+            miningUser.processUserWithOTP,
+            (parent1,otp1)
+        );
+        console.log("miningUser processUserWithOTP: ");
+        console.logBytes(bytesCodeCall);
+        console.log(
+            "-----------------------------------------------------------------------------"
+        );
         //activeUserByBe
         address parent = 0x430E02Cc084C8EDd1B931AdB3545eb73074bA317;
         bytes32 otp = 0x3132333435350000000000000000000000000000000000000000000000000000;
-        bytes memory bytesCodeCall = abi.encodeCall(
+        bytesCodeCall = abi.encodeCall(
             miningUser.activeUserByBe,
             (parent,otp)
         );
