@@ -8,7 +8,7 @@ import (
 	"syscall"
 
 	"github.com/meta-node-blockchain/meta-node/pkg/logger"
-	"github.com/meta-node-blockchain/noti-contract/app"
+	"github.com/meta-node-blockchain/cardvisa/app"
 )
 
 const (

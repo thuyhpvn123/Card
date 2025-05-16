@@ -1,0 +1,13 @@
+.deps
+contract/.deps
+remix-compiler.config.js
+.prettierrc.json
+contract/.states
+artifacts
+contract/cache
+contract/out
+contract/node_modules
+contract/lib
+.github
+contract/src
+.env

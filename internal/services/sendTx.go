@@ -3,18 +3,16 @@ package services
 import (
 	"encoding/hex"
 	"fmt"
-	"math/big"
-	"time"
-
-	"github.com/meta-node-blockchain/meta-node/pkg/logger"
-	pb "github.com/meta-node-blockchain/meta-node/pkg/proto"
-	"github.com/meta-node-blockchain/meta-node/pkg/transaction"
-
-	"github.com/meta-node-blockchain/meta-node/cmd/client"
-
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	e_common "github.com/ethereum/go-ethereum/common"
+	"github.com/meta-node-blockchain/cardvisa/internal/model"
+	"github.com/meta-node-blockchain/meta-node/cmd/client"
+	"github.com/meta-node-blockchain/meta-node/pkg/logger"
+	pb "github.com/meta-node-blockchain/meta-node/pkg/proto"
+	"github.com/meta-node-blockchain/meta-node/pkg/transaction"
+	"math/big"
+	"time"
 )
 
 type SendTransactionService interface {
@@ -87,33 +85,49 @@ func (h *sendTransactionService) CallVerifyPublicKey() (interface{}, error) {
 	maxGas := uint64(5_000_000)
 	maxGasPrice := uint64(1_000_000_000)
 	timeUse := uint64(0)
-	receipt, err := h.chainClient.SendTransactionWithDeviceKey(
-		h.fromAddress,
-		h.cardAddress,
-		big.NewInt(0),
-		// 4,
-		bData,
-		relatedAddress,
-		maxGas,
-		maxGasPrice,
-		timeUse,
-	)
-	fmt.Println("rc getBackendPubKey:", receipt)
-	if receipt.Status() == pb.RECEIPT_STATUS_RETURNED {
-		kq := make(map[string]interface{})
-		err = h.cardAbi.UnpackIntoMap(kq, "getBackendPubKey", receipt.Return())
-		if err != nil {
-			logger.Error("UnpackIntoMap")
-			return nil, err
+	ch := make(chan model.ResultData, 1)
+	go func() {
+		receipt, err := h.chainClient.SendTransactionWithDeviceKey(
+			h.fromAddress,
+			h.cardAddress,
+			big.NewInt(0),
+			bData,
+			relatedAddress,
+			maxGas,
+			maxGasPrice,
+			timeUse,
+		)
+		ch <- model.ResultData{
+			Receipt: receipt,
+			Err:     err,
 		}
-		result = kq[""]
-		logger.Info("getBackendPubKey - Result - ", kq)
-	} else {
-		result = hex.EncodeToString(receipt.Return())
-		logger.Info("getBackendPubKey - Result - ", result)
+	}()
+	select {
+	case res := <-ch:
+		if res.Err != nil {
+			logger.Error("SendTransactionWithDeviceKey error", res.Err)
+			return nil, res.Err
+		}
+		fmt.Println("rc getBackendPubKey:", res.Receipt)
+		if res.Receipt.Status() == pb.RECEIPT_STATUS_RETURNED {
+			kq := make(map[string]interface{})
+			err = h.cardAbi.UnpackIntoMap(kq, "getBackendPubKey", res.Receipt.Return())
+			if err != nil {
+				logger.Error("UnpackIntoMap")
+				return nil, err
+			}
+			result = kq[""]
+			logger.Info("getBackendPubKey - Result - ", kq)
+		} else {
+			result = hex.EncodeToString(res.Receipt.Return())
+			logger.Info("getBackendPubKey - Result - ", result)
 
+		}
+		return result, nil
+	case <-time.After(10 * time.Second):
+		logger.Error("Timeout when calling SendTransactionWithDeviceKey")
+		return nil, fmt.Errorf("timeout: no receipt after 10 seconds")
 	}
-	return result, nil
 }
 
 func (h *sendTransactionService) SubmitToken(
@@ -150,27 +164,46 @@ func (h *sendTransactionService) SubmitToken(
 	maxGasPrice := uint64(1_000_000_000)
 	timeUse := uint64(0)
 	fmt.Println("h.fromAddress:", h.fromAddress)
-	receipt, err := h.chainClient.SendTransactionWithDeviceKey(
-		h.fromAddress,
-		h.cardAddress,
-		big.NewInt(0),
-		// pb.ACTION_CALL_SMART_CONTRACT,
-		bData,
-		relatedAddress,
-		maxGas,
-		maxGasPrice,
-		timeUse,
-	)
-	fmt.Println("rc submitToken:", receipt)
-	if receipt.Status() == pb.RECEIPT_STATUS_RETURNED {
-		logger.Info("SubmitToken - Result - Success")
-		result = true
-	} else {
-		result = hex.EncodeToString(receipt.Return())
-		logger.Info("SubmitToken - Result - ", result)
+	ch := make(chan model.ResultData, 1)
 
+	go func() {
+		receipt, err := h.chainClient.SendTransactionWithDeviceKey(
+			h.fromAddress,
+			h.cardAddress,
+			big.NewInt(0),
+			bData,
+			relatedAddress,
+			maxGas,
+			maxGasPrice,
+			timeUse,
+		)
+		ch <- model.ResultData{
+			Receipt: receipt,
+			Err:     err,
+		}
+	}()
+	select {
+	case res := <-ch:
+		if res.Err != nil {
+			logger.Error("SendTransactionWithDeviceKey error", res.Err)
+			return nil, res.Err
+		}
+		fmt.Println("rc submitToken:", res.Receipt)
+		if res.Receipt.Status() == pb.RECEIPT_STATUS_RETURNED {
+			logger.Info("SubmitToken - Result - Success")
+			result = true
+		} else {
+			result = hex.EncodeToString(res.Receipt.Return())
+			logger.Info("SubmitToken - Result - ", result)
+
+		}
+		return result, nil
+	
+	case <-time.After(10 * time.Second):
+		logger.Error("Timeout when calling SendTransactionWithDeviceKey")
+		return nil, fmt.Errorf("timeout: no receipt after 10 seconds")
 	}
-	return result, nil
+
 }
 func (h *sendTransactionService) UpdateTxStatus(
 	tokenid [32]byte,
@@ -181,7 +214,6 @@ func (h *sendTransactionService) UpdateTxStatus(
 ) (interface{}, error) {
 	var result interface{}
 	fmt.Println("UpdateTxStatus")
-	start1 := time.Now()
 	input, err := h.cardAbi.Pack(
 		"UpdateTxStatus",
 		tokenid,
@@ -207,29 +239,45 @@ func (h *sendTransactionService) UpdateTxStatus(
 	maxGasPrice := uint64(1_000_000_000)
 	timeUse := uint64(0)
 	fmt.Println("h.fromAddress:", h.fromAddress)
-	receipt, err := h.chainClient.SendTransactionWithDeviceKey(
-		h.fromAddress,
-		h.cardAddress,
-		big.NewInt(0),
-		// pb.ACTION_CALL_SMART_CONTRACT,
-		bData,
-		relatedAddress,
-		maxGas,
-		maxGasPrice,
-		timeUse,
-	)
-	fmt.Println("rc UpdateTxStatus:", receipt)
-	fmt.Println("⏱️ Tổng thời gian999999999:", time.Since(start1))
+	ch := make(chan model.ResultData, 1)
 
-	if receipt.Status() == pb.RECEIPT_STATUS_RETURNED {
-		logger.Info("UpdateTxStatus - Result - Success")
-		result = true
-	} else {
-		result = hex.EncodeToString(receipt.Return())
-		logger.Info("UpdateTxStatus - Result - ", result)
+	go func() {
+		receipt, err := h.chainClient.SendTransactionWithDeviceKey(
+			h.fromAddress,
+			h.cardAddress,
+			big.NewInt(0),
+			bData,
+			relatedAddress,
+			maxGas,
+			maxGasPrice,
+			timeUse,
+		)
+		ch <- model.ResultData{
+			Receipt: receipt,
+			Err:     err,
+		}
+	}()
 
+	select {
+	case res := <-ch:
+		if res.Err != nil {
+			logger.Error("SendTransactionWithDeviceKey error", res.Err)
+			return nil, res.Err
+		}
+		fmt.Println("rc UpdateTxStatus:", res.Receipt)
+		if res.Receipt.Status() == pb.RECEIPT_STATUS_RETURNED {
+			logger.Info("UpdateTxStatus - Result - Success")
+			result = true
+		} else {
+			result = hex.EncodeToString(res.Receipt.Return())
+			logger.Info("UpdateTxStatus - Result - ", result)
+		}
+		return result, nil
+
+	case <-time.After(10 * time.Second):
+		logger.Error("Timeout when calling SendTransactionWithDeviceKey")
+		return nil, fmt.Errorf("timeout: no receipt after 10 seconds")
 	}
-	return result, nil
 }
 func (h *sendTransactionService) GetTx(
 	txID string,
@@ -257,33 +305,49 @@ func (h *sendTransactionService) GetTx(
 	maxGasPrice := uint64(1_000_000_000)
 	timeUse := uint64(0)
 	fmt.Println("h.fromAddress:", h.fromAddress)
-	receipt, err := h.chainClient.SendTransactionWithDeviceKey(
-		h.fromAddress,
-		h.cardAddress,
-		big.NewInt(0),
-		// pb.ACTION_CALL_SMART_CONTRACT,
-		bData,
-		relatedAddress,
-		maxGas,
-		maxGasPrice,
-		timeUse,
-	)
-	fmt.Println("rc getTx:", receipt)
-	if receipt.Status() == pb.RECEIPT_STATUS_RETURNED {
-
-		kq := make(map[string]interface{})
-		err = h.cardAbi.UnpackIntoMap(kq, "getTx", receipt.Return())
-		if err != nil {
-			logger.Error("UnpackIntoMap")
-			return nil, err
+	ch := make(chan model.ResultData, 1)
+	go func() {
+		receipt, err := h.chainClient.SendTransactionWithDeviceKey(
+			h.fromAddress,
+			h.cardAddress,
+			big.NewInt(0),
+			bData,
+			relatedAddress,
+			maxGas,
+			maxGasPrice,
+			timeUse,
+		)
+		ch <- model.ResultData{
+			Receipt: receipt,
+			Err:     err,
 		}
-		result = kq["transaction"]
-		logger.Info("getTx - Result - Success")
-	} else {
-		result = hex.EncodeToString(receipt.Return())
-		logger.Info("getTx - Result - ", result)
+	}()
+	select {
+	case res := <-ch:
+		if res.Err != nil {
+			logger.Error("SendTransactionWithDeviceKey error", res.Err)
+			return nil, res.Err
+		}
+		fmt.Println("rc getTx:", res.Receipt)
+		if res.Receipt.Status() == pb.RECEIPT_STATUS_RETURNED {
+
+			kq := make(map[string]interface{})
+			err = h.cardAbi.UnpackIntoMap(kq, "getTx", res.Receipt.Return())
+			if err != nil {
+				logger.Error("UnpackIntoMap")
+				return nil, err
+			}
+			result = kq["transaction"]
+			logger.Info("getTx - Result - Success")
+		} else {
+			result = hex.EncodeToString(res.Receipt.Return())
+			logger.Info("getTx - Result - ", result)
+		}
+		return result, nil
+	case <-time.After(10 * time.Second):
+		logger.Error("Timeout when calling SendTransactionWithDeviceKey")
+		return nil, fmt.Errorf("timeout: no receipt after 10 seconds")
 	}
-	return result, nil
 }
 func (h *sendTransactionService) MintUTXO(
 	parentValue *big.Int,
@@ -316,44 +380,59 @@ func (h *sendTransactionService) MintUTXO(
 	maxGasPrice := uint64(1_000_000_000)
 	timeUse := uint64(0)
 	fmt.Println("h.fromAddress:", h.fromAddress)
-	receipt, err := h.chainClient.SendTransactionWithDeviceKey(
-		h.fromAddress,
-		h.cardAddress,
-		big.NewInt(0),
-		// pb.ACTION_CALL_SMART_CONTRACT,
-		bData,
-		relatedAddress,
-		maxGas,
-		maxGasPrice,
-		timeUse,
-	)
-	fmt.Println("rc MintUTXO:", receipt)
-	if receipt.Status() == pb.RECEIPT_STATUS_RETURNED {
-		kq := make(map[string]interface{})
-		err = h.cardAbi.UnpackIntoMap(kq, "MintUTXO", receipt.Return())
-		if err != nil {
-			logger.Error("UnpackIntoMap MintUTXO")
-			return nil, err
+	ch := make(chan model.ResultData, 1)
+	go func() {
+		receipt, err := h.chainClient.SendTransactionWithDeviceKey(
+			h.fromAddress,
+			h.cardAddress,
+			big.NewInt(0),
+			bData,
+			relatedAddress,
+			maxGas,
+			maxGasPrice,
+			timeUse,
+		)
+		ch <- model.ResultData{
+			Receipt: receipt,
+			Err:     err,
 		}
-		newPool := kq["newPool"]
-		parentHash := kq["newPool"]
-		fmt.Println("newPool:", newPool)
-		fmt.Println("parentHash:", parentHash)
-		logger.Info("MintUTXO - Result - Success")
-	} else {
-		result = hex.EncodeToString(receipt.Return())
-		logger.Info("MintUTXO - Result - ", result)
-	}
-	fmt.Println("⏱️ Tổng thời gian88888888888:", time.Since(start1))
+	}()
+	select {
+	case res := <-ch:
+		if res.Err != nil {
+			logger.Error("SendTransactionWithDeviceKey error", res.Err)
+			return nil, res.Err
+		}
+		fmt.Println("rc MintUTXO:", res.Receipt)
+		if res.Receipt.Status() == pb.RECEIPT_STATUS_RETURNED {
+			kq := make(map[string]interface{})
+			err = h.cardAbi.UnpackIntoMap(kq, "MintUTXO", res.Receipt.Return())
+			if err != nil {
+				logger.Error("UnpackIntoMap MintUTXO")
+				return nil, err
+			}
+			newPool := kq["newPool"]
+			parentHash := kq["newPool"]
+			fmt.Println("newPool:", newPool)
+			fmt.Println("parentHash:", parentHash)
+			logger.Info("MintUTXO - Result - Success")
+		} else {
+			result = hex.EncodeToString(res.Receipt.Return())
+			logger.Info("MintUTXO - Result - ", result)
+		}
+		fmt.Println("⏱️ Tổng thời gian88888888888:", time.Since(start1))
 
-	return result, nil
+		return result, nil
+	case <-time.After(10 * time.Second):
+		logger.Error("Timeout when calling SendTransactionWithDeviceKey")
+		return nil, fmt.Errorf("timeout: no receipt after 10 seconds")
+	}
 }
 func (h *sendTransactionService) GetPoolInfo(
 	txID string,
 ) (interface{}, error) {
 	var result interface{}
 	fmt.Println("GetPoolInfo")
-	start1 := time.Now()
 	input, err := h.cardAbi.Pack(
 		"getPoolInfo",
 		txID,
@@ -375,33 +454,48 @@ func (h *sendTransactionService) GetPoolInfo(
 	maxGasPrice := uint64(1_000_000_000)
 	timeUse := uint64(0)
 	fmt.Println("h.fromAddress:", h.fromAddress)
-	receipt, err := h.chainClient.SendTransactionWithDeviceKey(
-		h.fromAddress,
-		h.cardAddress,
-		big.NewInt(0),
-		// pb.ACTION_CALL_SMART_CONTRACT,
-		bData,
-		relatedAddress,
-		maxGas,
-		maxGasPrice,
-		timeUse,
-	)
-	fmt.Println("rc getPoolInfo:", receipt)
-	fmt.Println("⏱️ Tổng thời gianpppppppppp:", time.Since(start1))
-	if receipt.Status() == pb.RECEIPT_STATUS_RETURNED {
-
-		kq := make(map[string]interface{})
-		err = h.cardAbi.UnpackIntoMap(kq, "getPoolInfo", receipt.Return())
-		if err != nil {
-			logger.Error("UnpackIntoMap")
-			return nil, err
+	ch := make(chan model.ResultData, 1)
+	go func() {
+		receipt, err := h.chainClient.SendTransactionWithDeviceKey(
+			h.fromAddress,
+			h.cardAddress,
+			big.NewInt(0),
+			bData,
+			relatedAddress,
+			maxGas,
+			maxGasPrice,
+			timeUse,
+		)
+		ch <- model.ResultData{
+			Receipt: receipt,
+			Err:     err,
 		}
-		result = kq["transaction"]
-		logger.Info("getPoolInfo - Result - Success")
-	} else {
-		result = hex.EncodeToString(receipt.Return())
-		logger.Info("getPoolInfo - Result - ", result)
-	}
-	return result, nil
-}
+	}()
+	select {
+	case res := <-ch:
+		if res.Err != nil {
+			logger.Error("SendTransactionWithDeviceKey error", res.Err)
+			return nil, res.Err
+		}
+		fmt.Println("rc getPoolInfo:", res.Receipt)
+		if res.Receipt.Status() == pb.RECEIPT_STATUS_RETURNED {
 
+			kq := make(map[string]interface{})
+			err = h.cardAbi.UnpackIntoMap(kq, "getPoolInfo", res.Receipt.Return())
+			if err != nil {
+				logger.Error("UnpackIntoMap")
+				return nil, err
+			}
+			result = kq["transaction"]
+			logger.Info("getPoolInfo - Result - Success")
+		} else {
+			result = hex.EncodeToString(res.Receipt.Return())
+			logger.Info("getPoolInfo - Result - ", result)
+		}
+		return result, nil
+	case <-time.After(10 * time.Second):
+		logger.Error("Timeout when calling SendTransactionWithDeviceKey")
+		return nil, fmt.Errorf("timeout: no receipt after 10 seconds")
+	}
+
+}

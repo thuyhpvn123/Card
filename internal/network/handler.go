@@ -19,11 +19,11 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	e_common "github.com/ethereum/go-ethereum/common"
 	"github.com/meta-node-blockchain/meta-node/pkg/logger"
-	"github.com/meta-node-blockchain/noti-contract/internal/config"
-	"github.com/meta-node-blockchain/noti-contract/internal/database"
-	"github.com/meta-node-blockchain/noti-contract/internal/model"
-	"github.com/meta-node-blockchain/noti-contract/internal/services"
-	"github.com/meta-node-blockchain/noti-contract/internal/utils"
+	"github.com/meta-node-blockchain/cardvisa/internal/config"
+	"github.com/meta-node-blockchain/cardvisa/internal/database"
+	"github.com/meta-node-blockchain/cardvisa/internal/model"
+	"github.com/meta-node-blockchain/cardvisa/internal/services"
+	"github.com/meta-node-blockchain/cardvisa/internal/utils"
 	"github.com/syndtr/goleveldb/leveldb"
 )
 
@@ -231,11 +231,17 @@ func (h *CardHandler) handleRequestUpdateTxStatus(data string) {
 		statusQuery := utils.UpdateStatus(txID)
 		atTime := time.Now().Unix()
 		if statusQuery == "success" {
-			h.service.UpdateTxStatus(tokenId, txID, 2, uint64(atTime), "success")
-			return
+			_,err := h.service.UpdateTxStatus(tokenId, txID, 2, uint64(atTime), "success")
+			if err != nil {
+				logger.Error("Error when UpdateTxStatus:",err)
+				return
+			}
 		} else {
-			h.service.UpdateTxStatus(tokenId, txID, status, uint64(atTime), reason)
-			return
+			_,err := h.service.UpdateTxStatus(tokenId, txID, status, uint64(atTime), reason)
+			if err != nil {
+				logger.Error("Error when UpdateTxStatus:",err)
+				return
+			}
 		}
 	}
 }
@@ -403,22 +409,41 @@ func (h *CardHandler) handleChargeRequest(data string) {
 		logger.Error("fail in parse merchant:", err)
 		return
 	}
-	fmt.Println("⏱️ Tổng thời gian111111111:", time.Since(start))
 	atTime := time.Now().Unix()
 	kq, err := utils.SendToThirdParty(card, amount, merchant, h.thirdPartyURL)
-	fmt.Println("⏱️ Tổng thời gian22222222:", time.Since(start))
 	if kq.Status == "failed" && !strings.Contains(kq.Message, "Transaction failed, pending"){
 		logger.Info("❌ Giao dịch thất bại: %s", kq.Message)
 
-		h.service.UpdateTxStatus(tokenId, kq.TransactionID, 0, uint64(atTime), kq.Message)
+		_,err = h.service.UpdateTxStatus(tokenId, kq.TransactionID, 0, uint64(atTime), kq.Message)
+		if err != nil {
+			logger.Error("Error when UpdateTxStatus:",err)
+			return
+		}
+
 	}else if kq.Status == "success"{
-		go h.service.UpdateTxStatus(tokenId, kq.TransactionID, 2, uint64(atTime), "success")
-		go h.service.MintUTXO(amount, merchant, kq.TransactionID)
-		fmt.Println("⏱️ Tổng thời gian4444444444:", time.Since(start))
+		go func(){
+			_,err = h.service.UpdateTxStatus(tokenId, kq.TransactionID, 2, uint64(atTime), "success")
+			if err != nil {
+				logger.Error("Error when UpdateTxStatus:",err)
+				return
+			}	
+		}()
+
+		go func(){
+			_,err := h.service.MintUTXO(amount, merchant, kq.TransactionID)
+			if err != nil {
+				logger.Error("Error when MintUTXO:",err)
+				return
+			}	
+		}()
 	}else{
 		// kq.Status == "being processed" || (kq.Status == "failed" && strings.Contains(kq.Message, "Transaction failed, pending") ){
 		logger.Info("⏳ Giao dịch đang xử lý...")
-		h.service.UpdateTxStatus(tokenId, kq.TransactionID, 1, uint64(atTime), "being processed")
+		_,err := h.service.UpdateTxStatus(tokenId, kq.TransactionID, 1, uint64(atTime), "being processed")
+		if err != nil {
+			logger.Error("Error when UpdateTxStatus:",err)
+			return
+		}	
 		ctx, cancel := context.WithCancel(context.Background())
 
 		h.cancelMu.Lock()
@@ -439,30 +464,40 @@ func (h *CardHandler) monitorTransaction(tokenId [32]byte, ctx context.Context, 
 		case <-time.After(1 * time.Second):
 			status := utils.UpdateStatus(txID)
 			atTime := time.Now().Unix()
-			fmt.Println("⏱️ Tổng thời gian5555555555:", time.Since(start))
 			if status == "success" {
 				// kq, err := h.service.UpdateTxStatus(tokenId, txID, 2, uint64(atTime), "success")
 				// result, ok := kq.(bool)
 				// if err == nil && ok && result {
 				// 	h.service.MintUTXO(parentValue, ownerPool, txID)
 				// }
-				h.service.UpdateTxStatus(tokenId, txID, 2, uint64(atTime), "success")
-				fmt.Println("⏱️ Tổng thời gian666666666666:", time.Since(start))
-				start1 := time.Now() 
-				kq,_ := h.service.MintUTXO(parentValue, ownerPool, txID)
+				_,err := h.service.UpdateTxStatus(tokenId, txID, 2, uint64(atTime), "success")
+				if err != nil {
+					logger.Error("Error when UpdateTxStatus:",err)
+					return
+				}	
+				kq,err:= h.service.MintUTXO(parentValue, ownerPool, txID)
+				if err != nil {
+					logger.Error("Error when MintUTXO:",err)
+					return
+				}	
 				fmt.Println("Done",kq)
 				
-				fmt.Println("⏱️ Tổng thời gian7777777777:", time.Since(start1))
-				h.service.GetPoolInfo(txID)
-				fmt.Println("⏱️ Tổng thời giankkkkkkkkkk:", time.Since(start1))
-				fmt.Println("⏱️ Tổng thời gian:", time.Since(start))
+				_,err = h.service.GetPoolInfo(txID)
+				if err != nil {
+					logger.Error("Error when GetPoolInfo:",err)
+					return
+				}	
 				return
 			}
 
-			// if strings.Contains(status,"transaction not exists") {
-			// 	h.service.UpdateTxStatus(tokenId, txID, 0, uint64(atTime), "fail")
-			// 	return
-			// }
+			if strings.Contains(status,"transaction not exists") {
+				_,err := h.service.UpdateTxStatus(tokenId, txID, 0, uint64(atTime), "fail")
+				if err != nil {
+					logger.Error("Error when MintUTXO:",err)
+					return
+				}	
+				return
+			}
 
 			logger.Info("🔄 Vẫn đang kiểm tra...")
 		}

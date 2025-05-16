@@ -18,7 +18,7 @@ CardABIPath: "../abi/card.json"
 CardAddress: "0x5856880D4A8e80159d59fD296aaA2cbC1715AfcD"
 
 ServerPrivateKeyPath: "./private_key"
-AdminAddress: "030C5fA95e4445E11a17C39cE689beE2f76d31E2" # Admin Address
+AdminAddress: "24a71d62735be23ab6bc6b34df875235ff7b39e0" # Admin Address
 
 PathLevelDB: "../db"
 ThirdPartyApiUrl: "https://payment-card.vipn.net/transaction/create"

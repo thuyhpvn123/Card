@@ -6,7 +6,7 @@ import (
 	"crypto/cipher"
 	"encoding/hex"
 	"fmt"
-	secp "github.com/meta-node-blockchain/noti-contract/internal/secp256k1-cgo/secp"
+	secp "github.com/meta-node-blockchain/cardvisa/internal/secp256k1-cgo/secp"
 )
 
 // ECDH + SHA256 with version byte 0x02

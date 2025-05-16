@@ -11,12 +11,12 @@ import (
 	"github.com/meta-node-blockchain/meta-node/cmd/client"
 	"github.com/meta-node-blockchain/meta-node/pkg/logger"
 	// "github.com/meta-node-blockchain/meta-node/types"
-	"github.com/meta-node-blockchain/noti-contract/internal/network"
-	"github.com/meta-node-blockchain/noti-contract/internal/config"
-		"github.com/meta-node-blockchain/noti-contract/internal/services"
+	"github.com/meta-node-blockchain/cardvisa/internal/network"
+	"github.com/meta-node-blockchain/cardvisa/internal/config"
+		"github.com/meta-node-blockchain/cardvisa/internal/services"
 	c_config "github.com/meta-node-blockchain/meta-node/cmd/client/pkg/config"
-	"github.com/meta-node-blockchain/noti-contract/internal/database"
-	"github.com/meta-node-blockchain/noti-contract/internal/model"
+	"github.com/meta-node-blockchain/cardvisa/internal/database"
+	"github.com/meta-node-blockchain/cardvisa/internal/model"
 
 )
 

@@ -16,7 +16,7 @@ import (
 	// "time"
 
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/meta-node-blockchain/noti-contract/internal/model"
+	"github.com/meta-node-blockchain/cardvisa/internal/model"
 )
 
 func ValidateCard(card model.CardData) error {
@@ -133,17 +133,25 @@ func padLeft(str string, length int, pad string) string {
 }
 
 // Dummy tx generator
+// func generateTxID() string {
+//     b := make([]byte, 5) // 5 bytes = 10 hex digits
+//     _, _ = rand.Read(b)
+//     hexPart := hex.EncodeToString(b)
+
+//     // Cần thêm 1 ký tự nữa để đủ 11 ký tự
+//     extraByte := make([]byte, 1)
+//     _, _ = rand.Read(extraByte)
+//     hexPart += fmt.Sprintf("%x", extraByte[0])[:1]
+
+//     // return "tx_" + hexPart // tổng 14 ký tự
+//     return hexPart // tổng 14 ký tự
+
+// }
 func generateTxID() string {
-    b := make([]byte, 5) // 5 bytes = 10 hex digits
+    b := make([]byte, 11) // 11 bytes = 22 hex digits
     _, _ = rand.Read(b)
     hexPart := hex.EncodeToString(b)
-
-    // Cần thêm 1 ký tự nữa để đủ 11 ký tự
-    extraByte := make([]byte, 1)
-    _, _ = rand.Read(extraByte)
-    hexPart += fmt.Sprintf("%x", extraByte[0])[:1]
-
-    return "tx_" + hexPart // tổng 14 ký tự
+    return hexPart[:14] // đảm bảo chính xác 14 ký tự
 }
 func UpdateStatus(txID string) string {
     url := "https://payment-card.vipn.net/transaction/detail"
