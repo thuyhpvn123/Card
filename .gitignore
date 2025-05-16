@@ -11,3 +11,4 @@ contract/lib
 .github
 contract/src
 .env
+db/
