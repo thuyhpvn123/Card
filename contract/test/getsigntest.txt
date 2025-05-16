@@ -1,0 +1,71 @@
+package main
+
+import (
+	"crypto/ecdsa"
+	"encoding/hex"
+	"fmt"
+	"log"
+	"math/big"
+
+	"github.com/ethereum/go-ethereum/common"
+	"github.com/ethereum/go-ethereum/crypto"
+)
+
+func main() {
+	// 1. Private key từ hex string
+	//Signer address: 0x043E61E490EC76Aa636758D72A15201923593C72v
+	hexKey := "728bae341b496ab69e56977f14955a4fe63dd21786bf76c5fc31e3a1e73da998"
+	privKeyBytes, err := hex.DecodeString(hexKey)
+	if err != nil {
+		log.Fatal("Invalid hex:", err)
+	}
+
+	privateKey, err := crypto.ToECDSA(privKeyBytes)
+	if err != nil {
+		log.Fatal("Invalid private key:", err)
+	}
+
+	// 2. Lấy địa chỉ ví từ public key
+	publicKey := privateKey.Public()
+	publicKeyECDSA, ok := publicKey.(*ecdsa.PublicKey)
+	if !ok {
+		log.Fatal("Cannot cast to ECDSA")
+	}
+	address := crypto.PubkeyToAddress(*publicKeyECDSA)
+	fmt.Println("Signer address:", address.Hex())
+
+	// 3. Hash message (keccak256)
+	// message := []byte("cvDcIPJQTimmy22dsznjUs:APA91bGAT9ONKBckTc4Uv1E_7SOrfgVJkjn-1AwT1wkBpSkGyQeooJ64RpPbDVSU_y7CIqS-X5vVmQFooXq_ACBnhJ32NRoCyh2GliS2Ogrl3ORZyOiZ4c8")
+	// hash := crypto.Keccak256Hash(message)
+	user := common.HexToAddress("0x043E61E490EC76Aa636758D72A15201923593C72")
+	timestamp := big.NewInt(1746583269)
+
+	var packed []byte
+	packed = append(packed, user.Bytes()...)         // 20 bytes
+	packed = append(packed, common.LeftPadBytes(timestamp.Bytes(), 32)...) // 32 bytes
+
+	hash := crypto.Keccak256Hash(packed)
+	fmt.Println("Message hash:", hash.Hex())
+
+	// 4. Ký hash
+	signature, err := crypto.Sign(hash.Bytes(), privateKey)
+	if err != nil {
+		log.Fatal("Sign error:", err)
+	}
+
+	// 5. Convert v từ 0/1 → 27/28
+	// signature[64] += 27
+	fmt.Printf("Signature (0x): 0x%x\n", signature)
+
+	// 6. Recover address
+	sigCopy := make([]byte, len(signature))
+	copy(sigCopy, signature)
+	// sigCopy[64] -= 27
+
+	recoveredPubKey, err := crypto.SigToPub(hash.Bytes(), sigCopy)
+	if err != nil {
+		log.Fatal("Recover failed:", err)
+	}
+	recoveredAddress := crypto.PubkeyToAddress(*recoveredPubKey)
+	fmt.Println("Recovered address:", recoveredAddress.Hex())
+}

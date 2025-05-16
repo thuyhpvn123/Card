@@ -1,0 +1,587 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+import "forge-std/Test.sol";
+import "../src/mining.sol";
+import "../src/code.sol";
+
+// Mock contract for PublicKeyFromPrivateKey
+contract PublicKeyFromPrivateKeyMock  {
+   function getPublicKeyFromPrivate(bytes memory _privateKey) external pure returns (bytes32) {
+        // Mock implementation: Return a deterministic result based on the hash of the private key
+        return keccak256(abi.encodePacked("public", _privateKey));
+    }
+}
+
+// Mock ERC20 Token for testing
+contract MockERC20 is ERC20 {
+    constructor(string memory name, string memory symbol) ERC20(name, symbol) {}
+    
+    function mint(address to, uint256 amount) public {
+        _mint(to, amount);
+    }
+}
+contract MockCode {
+    function activateCode(uint256 indexCode) external returns (uint256 boostRate, uint256 maxDuration, uint256 expireTime) {
+        // Mock implementation that returns predefined values
+        return (100*indexCode, 30 days+indexCode, block.timestamp + 365 days+indexCode);
+    }
+}
+contract MiningContractsTest is Test {
+    // Contracts
+    GetJob public getJob;
+    MiningDevice public miningDevice;
+    MiningUser public miningUser;
+    PendingMiningDevice public pendingMiningDevice;
+    MiningCode public miningCode;
+    MockERC20 public usdtToken;
+    PublicKeyFromPrivateKeyMock public keyContract;
+    // Code public codeContract;
+    MockCode codeContract;
+    // Accounts
+    address public owner;
+    address public user1;
+    address public user2;
+    address public device1;
+    address public device2;
+    address public validator;
+    address public BE;
+    uint256 user1PrivateKey;
+    uint256 user2PrivateKey;
+    uint256 device1PrivateKey;
+    uint256 device2PrivateKey;
+    uint256 currentTime = 1746583269;// 7/5/2025
+    address[] daoMemberArr;
+    bytes32 hashedPrivateCode;
+    bytes32 hashedPublicKey;
+    bytes privateCode = "privateCode123";
+    bytes secret = "secret123";
+
+    // Setup before each test
+    constructor(){
+        owner = address(0x111);
+        vm.startPrank(owner);
+        // Setup accounts with private keys
+        
+        user1PrivateKey = 0x1;
+        user2PrivateKey = 0x2;
+        device1PrivateKey = 0x3;
+        device2PrivateKey = 0x4;
+        
+        user1 = vm.addr(user1PrivateKey);
+        user2 = vm.addr(user2PrivateKey);
+        device1 = vm.addr(device1PrivateKey);
+        device2 = vm.addr(device2PrivateKey);
+        validator = address(0x5);
+        BE = address(0x11);
+        
+        // Deploy USDT token mock
+        usdtToken = new MockERC20("MockUSDT", "USDT");
+        // usdtToken.mint(owner, 1_000_000 * 10**6);
+        
+        // Transfer USDT to test accounts
+        // usdtToken.transfer(user1, 10_000 * 10**6);
+        // usdtToken.transfer(user2, 10_000 * 10**6);
+        
+        // // Deploy PublicKeyFromPrivateKey mock
+        keyContract = new PublicKeyFromPrivateKeyMock();
+        
+        // Deploy contracts
+        getJob = new GetJob();
+        miningDevice = new MiningDevice();
+        miningUser = new MiningUser(
+            BE, // BE address
+            address(usdtToken),
+            address(miningDevice),
+            user2
+        );
+        
+        pendingMiningDevice = new PendingMiningDevice(
+            address(miningDevice),
+            address(miningUser)
+        );
+        for (uint i=1;i<=12;i++){
+            address daoMember = generateAddress(i);
+            daoMemberArr.push(daoMember);
+        }
+
+        // codeContract = new Code(daoMemberArr);     
+        // codeContract.setMintLimit(user1, 100); 
+        codeContract = new MockCode();
+        miningCode = new MiningCode(address(keyContract), address(codeContract));
+        
+        // Setup contract connections
+        miningCode.setMiningDevice(address(miningDevice));
+        miningCode.setMiningUser(address(miningUser));
+        miningDevice.setMiningUser(address(miningUser));
+        miningDevice.setMiningCode(address(miningCode));
+        pendingMiningDevice.setValidator(validator);
+        miningDevice.setAdmin(address(pendingMiningDevice),true);
+        miningDevice.setAdmin(address(miningCode),true);
+        vm.stopPrank();
+    }
+    
+    // ========================= MiningUser Tests =========================
+        function testRefUserViaQRCodeAndProcessUserWithOTP() public {
+        vm.warp(currentTime);
+        address userA = 0x043E61E490EC76Aa636758D72A15201923593C72;
+        // Create referral signature
+        string memory token = "cvDcIPJQTimmy22dsznjUs:APA91bGAT9ONKBckTc4Uv1E_7SOrfgVJkjn-1AwT1wkBpSkGyQeooJ64RpPbDVSU_y7CIqS-X5vVmQFooXq_ACBnhJ32NRoCyh2GliS2Ogrl3ORZyOiZ4c8";
+        // bytes32 message = keccak256(abi.encodePacked(token));
+        // bytes memory message = hex"7ab6c6cf26984742859b7007ffe31f05";
+        // (uint8 v, bytes32 r, bytes32 s) = vm.sign(user1PrivateKey, message);
+        // bytes memory signature = abi.encodePacked(r, s, v);
+        bytes memory signature = hex"3ffd9a78be168c573d15a2dd7fc90ade3cc4d667a5615ac645eb195c94b3f2a32a9f50f8a9c4c6c70942c1cd82a00b87bbf0fcdf40f642280dab38d1980bf13b00";
+        // Refer userA by user2( user2 gioi thieu userA)
+        vm.prank(user2);//nguoi gioi thieu
+        miningUser.refUserViaQRCode(userA, signature, token);
+        
+        // Check event emission
+        // Would need proper event testing here
+         // Process with OTP
+        bytes32 otp = keccak256(abi.encodePacked("otp_value"));
+        vm.prank(userA);//nguoi duoc gioi thieu nhan duoc noti xong goi
+        miningUser.processUserWithOTP(user2, otp);
+        //backend goi activeUserByBe
+        vm.warp(currentTime + 7 days);
+        vm.prank(BE);
+        miningUser.activeUserByBe(user2,otp);
+        
+        GetByteCode();
+    }
+    // ========================= MiningCode Tests =========================
+     function testActivationFlow() public {
+        //1.genCode
+        // Calculate expected hashes
+        hashedPrivateCode = keccak256(abi.encodePacked(privateCode));
+        bytes32 publicKey = keyContract.getPublicKeyFromPrivate(privateCode);
+        hashedPublicKey = keccak256(abi.encodePacked(publicKey));
+        
+        // Generate a code first
+        // bytes32 emptyBytes32 = 0x0000000000000000000000000000000000000000000000000000000000000000;
+        miningCode.genCode(1, hashedPrivateCode, hashedPublicKey);
+        //2.Cac buoc activateCode
+        // Step 1: Create commit hash (privateCode + secret + user address)
+        bytes32 commitHash = keccak256(abi.encodePacked(privateCode, secret, user1));
+        
+        // User calls commitActivationCode with the hash
+        vm.startPrank(user1);
+        miningCode.commitActivationCode(commitHash);
+        vm.stopPrank();
+        
+        // Step 2: Wait for 15 seconds (the minimum reveal delay)
+        vm.warp(block.timestamp + 15 seconds);
+        
+        // Step 3: User activates the code with the actual privateCode and secret
+        vm.startPrank(user1);
+        miningCode.activateCode(privateCode, secret);
+        vm.stopPrank();
+        
+        // Step 4: Verify code activation and linking
+        
+        // Extract device address from hashedPublicKey - matches the logic in activateCode
+        address expectedDeviceAddress = address(uint160(uint256(hashedPublicKey) & 0x0000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF));
+        
+        // Check that the code is activated for the user
+        DataCode memory activatedCode = getMiningPrivateCode(hashedPrivateCode);
+        
+        // Assert code activation
+        assertEq(activatedCode.owner, user1, "Code should be activated for the user");
+        assertEq(activatedCode.device, expectedDeviceAddress, "Device should be properly set");
+        assertTrue(activatedCode.activeTime > 0, "Active time should be set");
+        
+        // Verify that the user and device are linked
+        assertTrue(isDeviceLinkedToUser(user1, expectedDeviceAddress), "User should be linked to device");
+    }
+    
+    // Helper function to access and return the miningPrivateCodes mapping value
+    function getMiningPrivateCode(bytes32 _hashedPrivateCode) internal view returns (DataCode memory) {
+        // Use the exposed mapping to get the data code
+        (
+            address owner,
+            address device,
+            uint256 boostRate,
+            uint256 maxDuration,
+            address showroom,
+            address ref_1,
+            address ref_2,
+            address ref_3,
+            address ref_4,
+            uint256 activeTime,
+            uint256 expireTime
+        ) = miningCode.miningPrivateCodes(_hashedPrivateCode);
+        
+        DataCode memory code;
+        code.owner = owner;
+        code.device = device;
+        code.boostRate = boostRate;
+        code.maxDuration = maxDuration;
+        code.showroom = showroom;
+        code.ref_1 = ref_1;
+        code.ref_2 = ref_2;
+        code.ref_3 = ref_3;
+        code.ref_4 = ref_4;
+        code.activeTime = activeTime;
+        code.expireTime = expireTime;
+        
+        return code;
+    }
+    
+    // Helper function to check if a device is linked to a user
+    function isDeviceLinkedToUser(address _user, address _device) internal view returns (bool) {
+        return miningDevice.isLinkUserDevice(_user, _device);
+    }
+    
+    // Define DataCode struct to match the one in MiningCode
+    struct DataCode {
+        address owner;
+        address device;
+        uint256 boostRate;
+        uint256 maxDuration;
+        address showroom;
+        address ref_1;
+        address ref_2;
+        address ref_3;
+        address ref_4;
+        uint256 activeTime;
+        uint256 expireTime;
+    }
+    function testActivateCodeTooSoon() public {
+        // Create and commit code
+        bytes32 commitHash = keccak256(abi.encodePacked(privateCode, secret, user1));
+        
+        vm.prank(user1);
+        miningCode.commitActivationCode(commitHash);
+        
+        // Try to activate too soon
+        vm.prank(user1);
+        vm.expectRevert("Wait for reveal time");
+        miningCode.activateCode(bytes(privateCode), bytes(secret));
+    }
+    
+    function testActivateCodeWrongDetails() public {
+        // Create and commit code
+        bytes32 commitHash = keccak256(abi.encodePacked(privateCode, secret, user1));
+        
+        vm.prank(user1);
+        miningCode.commitActivationCode(commitHash);
+        
+        // Wait for reveal delay
+        vm.warp(block.timestamp + 16); // 16 seconds
+        
+        // Try to activate with wrong code
+        vm.prank(user1);
+        vm.expectRevert("Invalid code");
+        miningCode.activateCode("wrongcode", secret);
+        
+        // Try to activate with wrong secret
+        vm.prank(user1);
+        vm.expectRevert("Invalid code");
+        miningCode.activateCode(privateCode, "wrongsecret");
+    }
+        function testCommitActivationCode() public {
+        // Create commit hash
+        bytes32 commitHash = keccak256(abi.encodePacked(privateCode, secret, user1));
+        
+        // Commit the code
+        vm.prank(user1);
+        miningCode.commitActivationCode(commitHash);
+        
+        // Check commit was saved
+        (bytes32 savedHash, uint256 commitTime) = miningCode.commits(user1);
+        assertEq(savedHash, commitHash, "Commit hash should be saved");
+        assertEq(commitTime, block.timestamp, "Commit time should be set");
+    }
+
+    function generateAddress(uint256 num) public pure returns (address) {
+        return address(uint160(uint256(keccak256(abi.encodePacked(num)))));
+    }
+
+    function GetByteCode()public{
+        //refUserViaQRCode
+        // address userA = 0x043E61E490EC76Aa636758D72A15201923593C72;
+        // string memory token = "cvDcIPJQTimmy22dsznjUs:APA91bGAT9ONKBckTc4Uv1E_7SOrfgVJkjn-1AwT1wkBpSkGyQeooJ64RpPbDVSU_y7CIqS-X5vVmQFooXq_ACBnhJ32NRoCyh2GliS2Ogrl3ORZyOiZ4c8";
+        // bytes memory signature = hex"3ffd9a78be168c573d15a2dd7fc90ade3cc4d667a5615ac645eb195c94b3f2a32a9f50f8a9c4c6c70942c1cd82a00b87bbf0fcdf40f642280dab38d1980bf13b00";
+        // // Refer user2 by user1
+        // vm.prank(user2);
+        // miningUser.refUserViaQRCode(userA, signature, token);
+        // bytes memory bytesCodeCall = abi.encodeCall(
+        //     miningUser.refUserViaQRCode,
+        //     (userA, signature, token)
+        // );
+        // console.log("miningUser refUserViaQRCode: ");
+        // console.logBytes(bytesCodeCall);
+        // console.log(
+        //     "-----------------------------------------------------------------------------"
+        // );
+        //activeUserByBe
+        address parent = 0x430E02Cc084C8EDd1B931AdB3545eb73074bA317;
+        bytes32 otp = 0x3132333435350000000000000000000000000000000000000000000000000000;
+        bytes memory bytesCodeCall = abi.encodeCall(
+            miningUser.activeUserByBe,
+            (parent,otp)
+        );
+        console.log("miningUser activeUserByBe: ");
+        console.logBytes(bytesCodeCall);
+        console.log(
+            "-----------------------------------------------------------------------------"
+        );
+
+    }
+    // ========================= GetJob Tests =========================
+
+    function testGetJobFirstTime() public {
+        vm.warp(currentTime);
+        // Get job for the first time
+        vm.prank(user1);
+        (bytes32 jobHash, string memory jobType, string memory dataLink) = getJob.getJob(bytes32(0), "");
+        
+        // Check job was created
+        assertNotEq(jobHash, bytes32(0), "Job hash should not be zero");
+        assertTrue(bytes(jobType).length > 0, "Job type should not be empty");
+        assertTrue(bytes(dataLink).length > 0, "Data link should not be empty");
+        
+        // Check user is active
+        assertTrue(getJob.isInActiveList(user1), "User should be in active list");
+    }
+    
+    function testGetJobComplete() public {
+        vm.warp(currentTime);
+        // First get a job
+        vm.prank(user1);
+        (bytes32 jobHash, , ) = getJob.getJob(bytes32(0), "");
+        
+        // Wait 1 minute
+        vm.warp(block.timestamp + 61);
+        
+        // Complete job and get a new one
+        vm.prank(user1);
+        (bytes32 newJobHash, , ) = getJob.getJob(jobHash, "Job completed successfully");
+        
+        // Check new job is different
+        assertNotEq(newJobHash, jobHash, "New job hash should be different");
+    }
+    
+    function testGetJobTooSoon() public {
+        vm.warp(currentTime);
+        // Get first job
+        vm.prank(user1);
+        getJob.getJob(bytes32(0), "");
+        
+        // Try to get another job too soon (should fail)
+        vm.prank(user1);
+        vm.expectRevert("Must wait 1 minute before calling again");
+        getJob.getJob(bytes32(0), "");
+    }
+    
+    function testGetJobWrongHash() public {
+        vm.warp(currentTime);
+        // Get first job
+        vm.prank(user1);
+        getJob.getJob(bytes32(0), "");
+        
+        // Wait 1 minute
+        vm.warp(block.timestamp + 61);
+        
+        // Try to complete with wrong hash
+        bytes32 wrongHash = keccak256(abi.encodePacked("wrong hash"));
+        vm.prank(user1);
+        vm.expectRevert("Invalid job hash");
+        getJob.getJob(wrongHash, "Job completed successfully");
+    }
+    
+    function testGetRecentActiveUsers() public {
+        vm.warp(currentTime);
+        // User1 gets job
+        vm.prank(user1);
+        getJob.getJob(bytes32(0), "");
+        
+        // Advance time and user2 gets job
+        vm.warp(block.timestamp + 61);
+        vm.prank(user2);
+        getJob.getJob(bytes32(0), "");
+        
+        // Get recent users (last 30 seconds)
+        address[] memory recentUsers = getJob.getRecentActiveUsers(block.timestamp - 30);
+        
+        // Check user2 is in recent users
+        bool found = false;
+        for (uint i = 0; i < recentUsers.length; i++) {
+            if (recentUsers[i] == user2) {
+                found = true;
+                break;
+            }
+        }
+        assertTrue(found, "User2 should be in recent users");
+    }
+    
+    // ========================= MiningDevice Tests =========================
+    
+    function testLinkDeviceToUser() public {
+        vm.warp(currentTime);
+        uint256 timestamp = currentTime;
+        address user3 = 0x043E61E490EC76Aa636758D72A15201923593C72;
+        
+        // Create signature from device for user
+        bytes32 message = keccak256(abi.encodePacked(user1, timestamp));
+        // (uint8 v, bytes32 r, bytes32 s) = vm.sign(device1PrivateKey, message);
+        // bytes memory signature = abi.encodePacked(r, s, v);
+        bytes memory signature = hex"6055f2424f681caea5004ba44d860ef3de8a395e498e7249658ad323c288a6d01c9f293058a69a14a1a7137929640d8a561ce18b1cae6b2959c52f5b8783a34901";
+
+        // Link device to user
+        vm.prank(device1);
+        miningDevice.deviceLinkToUser(user3, signature, timestamp);
+        
+        // Check link was successful
+        assertTrue(miningDevice.isLinkUserDevice(user3, device1), "Device should be linked to user");
+    }
+    
+    function testUserLinkToDevice() public {
+        vm.warp(currentTime);
+        uint256 timestamp = currentTime;
+        address deviceA = 0x043E61E490EC76Aa636758D72A15201923593C72;
+        // Create signature from user for device
+        // bytes32 message = keccak256(abi.encodePacked(deviceA, timestamp));
+        // (uint8 v, bytes32 r, bytes32 s) = vm.sign(user1PrivateKey, message);
+        // bytes memory signature = abi.encodePacked(r, s, v);
+        bytes memory signature = hex"6055f2424f681caea5004ba44d860ef3de8a395e498e7249658ad323c288a6d01c9f293058a69a14a1a7137929640d8a561ce18b1cae6b2959c52f5b8783a34901";
+      
+        // Link user to device
+        vm.prank(user1);
+        miningDevice.userLinkToDevice(deviceA, signature, timestamp);
+        
+        // Check link was successful
+        assertTrue(miningDevice.isLinkUserDevice(user1, deviceA), "User should be linked to device");
+    }
+    
+    function testAddBalance() public {
+        // Link device to user first
+        vm.warp(currentTime);
+        uint256 timestamp = currentTime;
+        address user3 = 0x043E61E490EC76Aa636758D72A15201923593C72;
+        // bytes32 message = keccak256(abi.encodePacked(user3, timestamp));
+        // (uint8 v, bytes32 r, bytes32 s) = vm.sign(device1PrivateKey, message);
+        // bytes memory signature = abi.encodePacked(r, s, v);
+        bytes memory signature = hex"6055f2424f681caea5004ba44d860ef3de8a395e498e7249658ad323c288a6d01c9f293058a69a14a1a7137929640d8a561ce18b1cae6b2959c52f5b8783a34901";
+        
+        vm.prank(device1);
+        miningDevice.deviceLinkToUser(user3, signature, timestamp);
+        
+        // Advance time by 24 hours
+        vm.warp(block.timestamp + 24 * 60 * 60 + 1);
+        vm.prank(address(pendingMiningDevice));
+        // Add balance
+        uint256 amount = 1 ether;
+        miningDevice.addBalance(device1, amount);
+        
+        // Check balance
+        assertEq(miningDevice.balanceOf(device1), amount, "Device balance should be updated");
+    }
+    
+    function testAddBalanceTooSoon() public {
+        // Link device to user first
+        vm.warp(currentTime);
+        uint256 timestamp = currentTime;
+        address user3 = 0x043E61E490EC76Aa636758D72A15201923593C72;
+        // bytes32 message = keccak256(abi.encodePacked(user1, timestamp));
+        // (uint8 v, bytes32 r, bytes32 s) = vm.sign(device1PrivateKey, message);
+        // bytes memory signature = abi.encodePacked(r, s, v);
+        bytes memory signature = hex"6055f2424f681caea5004ba44d860ef3de8a395e498e7249658ad323c288a6d01c9f293058a69a14a1a7137929640d8a561ce18b1cae6b2959c52f5b8783a34901";
+
+        vm.prank(device1);
+        miningDevice.deviceLinkToUser(user3, signature, timestamp);
+        vm.prank(address(pendingMiningDevice));
+        // Try to add balance immediately (should fail)
+        uint256 amount = 1 ether;
+        vm.expectRevert("not match time");
+        miningDevice.addBalance(device1, amount);
+    }
+    
+    // ========================= PendingMiningDevice Tests =========================
+    
+    function testAddPendingReward() public {
+       
+        vm.prank(validator);
+        // Add pending reward
+        uint256 amount = 1 ether;
+        pendingMiningDevice.addPendingReward(user1, amount);
+        
+        // Check pending balance
+        assertEq(pendingMiningDevice.pendingBalance(user1), amount, "Pending balance should be updated");
+        
+        // Check reward details
+        (uint256 rewardAmount, uint256 pendingSince, bool isClaimed) = pendingMiningDevice.minerRewards(user1, 0);
+        assertEq(rewardAmount, amount, "Reward amount should match");
+        assertEq(pendingSince, block.timestamp, "Pending since should be set to current time");
+        assertFalse(isClaimed, "Reward should not be claimed yet");
+    }
+    
+    function testClaimRewardTooSoon() public {
+         vm.prank(validator);
+        // Add pending reward
+        uint256 amount = 1 ether;
+        pendingMiningDevice.addPendingReward(user1, amount);
+        
+        // Try to claim too soon (should fail)
+        vm.prank(user1);
+        vm.expectRevert("No reward available for claim");
+        pendingMiningDevice.claimReward();
+    }
+    
+    function testClaimRewardAfterDelay() public {
+        // Setup: Link device to user and add balance to device
+        vm.warp(currentTime);
+        uint256 timestamp = currentTime;
+        address user3 = 0x043E61E490EC76Aa636758D72A15201923593C72;
+        // bytes32 message = keccak256(abi.encodePacked(user1, timestamp));
+        // (uint8 v, bytes32 r, bytes32 s) = vm.sign(device1PrivateKey, message);
+        // bytes memory signature = abi.encodePacked(r, s, v);
+        bytes memory signature = hex"6055f2424f681caea5004ba44d860ef3de8a395e498e7249658ad323c288a6d01c9f293058a69a14a1a7137929640d8a561ce18b1cae6b2959c52f5b8783a34901";
+
+        vm.prank(device1);
+        miningDevice.deviceLinkToUser(user3, signature, timestamp);
+         vm.prank(validator);
+        // Add pending reward
+        uint256 amount = 1 ether;
+        pendingMiningDevice.addPendingReward(user1, amount);
+        
+        // Advance time by 48 hours
+        vm.warp(block.timestamp + 48 * 60 * 60 + 1);
+        
+        // This would need proper integration with MiningDevice.addBalance
+        // For a proper test, we'd need to mock or use proper integration
+    }
+    
+    
+    
+    
+    
+    
+    
+    // function testDepositToWithdraw() public {
+    //     // Link device to user first
+    //     uint256 timestamp = block.timestamp;
+    //     bytes32 message = keccak256(abi.encodePacked(user1, timestamp));
+    //     (uint8 v, bytes32 r, bytes32 s) = vm.sign(device1PrivateKey, message);
+    //     bytes memory signature = abi.encodePacked(r, s, v);
+        
+    //     vm.prank(device1);
+    //     miningDevice.deviceLinkToUser(user1, signature, timestamp);
+        
+    //     // Add balance to device
+    //     vm.warp(block.timestamp + 24 * 60 * 60 + 1);
+    //     uint256 deviceAmount = 10 ether;
+    //     miningDevice.addBalance(device1, deviceAmount);
+        
+    //     // Approve USDT
+    //     uint256 usdtAmount = 200 * 10**6; // 200 USDT
+    //     vm.prank(user1);
+    //     usdtToken.approve(address(miningUser), usdtAmount);
+        
+    //     // Deposit to withdraw
+    //     uint256 resourceAmount = 1 ether; // 1 ETH / MTD
+        
+    //     // This would need more setup to test properly
+    //     // Would need to ensure the contract can send ETH back to user
+    // }
+}

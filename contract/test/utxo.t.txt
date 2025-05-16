@@ -1,0 +1,147 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.19;
+
+import "forge-std/Test.sol";
+import "../src/utxo.sol";
+
+contract UltraUTXOTest is Test {
+    UltraUTXO ultraUTXO;
+
+    address owner = address(0x1);
+    address pendingOwner = address(0x2);
+    address recipient = address(0x3);
+    
+    function setUp() public {
+        vm.startPrank(owner);
+        ultraUTXO = new UltraUTXO();
+        vm.stopPrank();
+    }
+
+    function testInitialOwner() public {
+        assertEq(ultraUTXO.owner(), owner, "Owner should be set correctly on deployment");
+    }
+
+    function testInitiateOwnershipTransfer() public {
+        vm.startPrank(owner);
+        ultraUTXO.initiateOwnershipTransfer(pendingOwner);
+        vm.stopPrank();
+
+        assertEq(ultraUTXO.pendingOwner(), pendingOwner, "Pending owner should be set correctly");
+    }
+
+    function testAcceptOwnership() public {
+        vm.startPrank(owner);
+        ultraUTXO.initiateOwnershipTransfer(pendingOwner);
+        vm.stopPrank();
+
+        vm.startPrank(pendingOwner);
+        ultraUTXO.acceptOwnership();
+        vm.stopPrank();
+
+        assertEq(ultraUTXO.owner(), pendingOwner, "Ownership should transfer correctly");
+    }
+
+    function testMintUTXO() public {
+        bytes32 utxoHash = keccak256(abi.encodePacked("testUTXO"));
+        uint256 value = 100;
+
+        vm.startPrank(owner);
+        address pool = ultraUTXO.mint(recipient, utxoHash, value, recipient);
+        vm.stopPrank();
+
+        (uint256 storedValue, bool spent, address storedPool, address storedOwner) = ultraUTXO.childUTXOs(utxoHash);
+
+        assertEq(storedValue, value, "Value should be stored correctly");
+        assertFalse(spent, "UTXO should not be spent");
+        assertEq(storedPool, pool, "Pool address should match");
+        assertEq(storedOwner, recipient, "Owner should be set correctly");
+    }
+}
+
+contract PoolUTXOTest is Test {
+    PoolUTXO poolUTXO;
+    address deployer = address(0x1);
+    address owner = address(0x2);
+    address recipient1 = address(0x3);
+    address recipient2 = address(0x4);
+    address user1 = address(0x5);
+
+    uint256 parentValue = 1000;
+    uint256 expiry = block.timestamp + 720 days;
+    bytes32 parentHash;
+    constructor() public {
+        vm.prank(deployer);
+        bytes32 parentHash = keccak256(abi.encodePacked(msg.sender, parentValue, block.timestamp, block.number));
+        poolUTXO = new PoolUTXO(parentValue, owner, parentHash, expiry);
+        console.log("block.timestamp:",block.timestamp);
+        console.log("block.number:",block.number);
+    }
+
+    function testCreateParentUTXO() public {
+        vm.startPrank(user1);
+        bytes32 previousParentHashRoot = poolUTXO.previousParentHashRoot();
+        console.log("previousParentHashRoot:");
+        console.logBytes32(previousParentHashRoot);
+        bytes32 previousParentHash0 = parentHash;
+        uint256[] memory childValues = new uint256[](2);
+        childValues[0] = 300;
+        childValues[1] = 700;
+
+        address[] memory recipients = new address[](2);
+        recipients[0] = recipient1;
+        recipients[1] = recipient2;
+         // Create a previous parent UTXO to satisfy the requirement
+        bytes32 newParentHash = keccak256(abi.encodePacked(user1, parentValue, block.timestamp, block.number));
+        bytes32 newhash =  poolUTXO.createParentUTXO(previousParentHashRoot, parentValue, childValues, recipients);
+        (uint256 value1,address owner1,bytes32 previousParentHash,uint256 activeTime,bool spent) = poolUTXO.parentUTXOs(newParentHash);       
+        assertEq(newhash, newParentHash, "hash should be same");
+        // Assert
+        (uint256 value, address owner, bytes32 prevHash) = poolUTXO.getParentUTXO(newParentHash);
+        assertEq(value, 0, "Parent UTXO value mismatch");
+        assertEq(owner, user1, "Parent UTXO owner mismatch");
+        assertEq(prevHash, previousParentHashRoot, "Previous parent hash mismatch");
+        (uint256 storedValue1, PoolUTXO.ChildStatus spent1) = poolUTXO.getChildUTXO(newParentHash, recipient1);
+        (uint256 storedValue2, PoolUTXO.ChildStatus spent2) = poolUTXO.getChildUTXO(newParentHash, recipient2);
+        assertEq(storedValue1, 300, "Child 1 value should be set correctly");
+        assertEq(storedValue2, 700, "Child 2 value should be set correctly");
+        assertEq(uint8(spent1), uint8(PoolUTXO.ChildStatus.Unspent), "Child 1 should be unspent");
+        assertEq(uint8(spent2), uint8(PoolUTXO.ChildStatus.Unspent), "Child 2 should be unspent");
+        vm.stopPrank();
+        transferChildUTXO(newhash);
+    }
+    function transferChildUTXO(bytes32 newParentHash )public{
+        vm.startPrank(recipient1);
+         uint256[] memory values = new uint256[](1);
+        values[0] = 300;
+
+        address[] memory transferRecipients = new address[](1);
+        transferRecipients[0] = recipient2;
+        bytes32 newParentHashChild = poolUTXO.transferChildUTXO(newParentHash, values, transferRecipients);
+        (uint256 storedValue, address storedOwner, ) = poolUTXO.getParentUTXO(newParentHashChild);
+        assertEq(storedValue, 0, "should be equal");
+        assertEq(storedOwner, user1, "should be equal");
+
+        vm.stopPrank();
+
+    }
+    // function testRedeemChildUTXO() public {
+    //     uint256[] memory values = new uint256[](1);
+    //     values[0] = 400;
+
+    //     address[] memory recipients = new address[](1);
+    //     recipients[0] = recipient1;
+
+    //     bytes32 parentHash = poolUTXO.createParentUTXO(bytes32(0), parentValue, values, recipients);
+
+    //     vm.warp(block.timestamp + 60 days); // Fast-forward to active period
+
+    //     vm.startPrank(recipient1);
+    //     poolUTXO.redeemChildUTXO(parentHash, keccak256(abi.encodePacked("testTokenCard")));
+    //     vm.stopPrank();
+
+    //     // (, PoolUTXO.ChildStatus spent) = poolUTXO.parentUTXOs(parentHash).children[recipient1];
+    //     (, PoolUTXO.ChildStatus spent) = poolUTXO.getChildUTXO(parentHash, recipient1);
+
+    //     assertEq(uint8(spent), uint8(PoolUTXO.ChildStatus.Redeemed), "Child should be redeemed");
+    // }
+}

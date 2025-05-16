@@ -1,0 +1,6 @@
+{
+  "privateKeyHex": "9d8a62f656a8d1615c1294fd71e9cfb3e4855a4fbaabf244b1a79c53b77dbe8b",
+  "rpcUrl": "http://localhost:8545",
+  "contractAddress": "0xYourSmartContractAddress",
+  "thirdPartyApiUrl": "https://payment-card.vipn.net/transaction/create"
+}
