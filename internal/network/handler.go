@@ -52,6 +52,9 @@ func NewCardEventHandler(
 	storedPubKey string,
 	eventChan chan model.EventLog,
 ) *CardHandler {
+	if DB == nil {
+        logger.Error("Nil database provided to CardHandler")
+    }
 	return &CardHandler{
 		config:           config,
 		service:          service,
@@ -122,12 +125,15 @@ func (h *CardHandler) ListenEvents() {
 		callmap := map[string]interface{}{
 			"key": "lastBlock",
 		}
-		lastBlockBytes, err := database.ReadValueStorage(callmap, h.DB)
-	
-		if err == nil {
-			fromBlock, _ = strconv.ParseUint(string(lastBlockBytes), 0, 64)
+		if h.DB != nil {
+			lastBlockBytes, err := database.ReadValueStorage(callmap, h.DB)
+			if err !=nil{
+				logger.Error("Error ReadValueStorage lastBlockBytes:", err)
+			}
+			if err == nil {
+				fromBlock, _ = strconv.ParseUint(string(lastBlockBytes), 0, 64)
+			}
 		}
-
 		for {
 			select {
 			default:
@@ -364,6 +370,10 @@ func (h *CardHandler) handleTokenRequest(data string) {
 	// 	logger.Error("fail in parse result of SubmitToken:", err)
 	// }
 	// if ok && kq1 {
+		if h.DB == nil {
+			logger.Error("Database connection is nil in handleTokenRequest")
+			return 
+		}
 		callmap := map[string]interface{}{
 			"key":  "token_" + hex.EncodeToString(tokenId[:]),
 			"data": string(encryptedCardData),

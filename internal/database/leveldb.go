@@ -1,6 +1,7 @@
 package database
 
 import (
+	"errors"
 	"fmt"
 	"log"
 
@@ -12,8 +13,10 @@ func Open( path string) (*leveldb.DB,error){
         return nil, err
     }
     // defer db.Close()
-	return db,err
-}
+	if db == nil {
+        return nil, errors.New("leveldb connection is nil after opening")
+    }
+    return db, nil}
 func WriteValueStorage(call map[string]interface{},db *leveldb.DB) error {
 	key, ok := call["key"].(string)
 	data, ok := call["data"].(string)
