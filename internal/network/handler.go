@@ -354,13 +354,16 @@ func (h *CardHandler) handleTokenRequest(data string) {
 
 	//api get region bo sung sau
 	region := "VN"
-	kq, err := h.service.SubmitToken(user, tokenId, region, requestId, cardHash)
+	_, err = h.service.SubmitToken(user, tokenId, region, requestId, cardHash)
 	if err != nil {
 		logger.Error("fail in SubmitToken:", err)
 		return
 	}
-	kq1, ok := kq.(bool)
-	if ok && kq1 {
+	// kq1, ok := kq.(bool)
+	// if !ok{
+	// 	logger.Error("fail in parse result of SubmitToken:", err)
+	// }
+	// if ok && kq1 {
 		callmap := map[string]interface{}{
 			"key":  "token_" + hex.EncodeToString(tokenId[:]),
 			"data": string(encryptedCardData),
@@ -371,7 +374,7 @@ func (h *CardHandler) handleTokenRequest(data string) {
 			return
 		}
 		logger.Info("Saved token in db")
-	}
+	// }
 
 }
 
