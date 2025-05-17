@@ -127,66 +127,85 @@ func (h *CardHandler) ListenEvents() {
 		}
 		if h.DB != nil {
 			lastBlockBytes, err := database.ReadValueStorage(callmap, h.DB)
-			if err !=nil{
-				logger.Error("Error ReadValueStorage lastBlockBytes:", err)
-			}
-			if err == nil {
+			if err != nil || len(lastBlockBytes) == 0 {
+				// Nếu chưa có lastBlock trong DB, lấy latest block hiện tại
+				latestBlockStr, err := utils.GetLatestBlockNumber(rpcURL)
+				if err != nil {
+					logger.Error("Failed to get latest block on first load:", err)
+					return
+				}
+				latestBlockUint, _ := strconv.ParseUint(latestBlockStr, 0, 64)
+		
+				fromBlock = latestBlockUint // Ghi nhận block hiện tại làm mốc đầu tiên
+		
+				// Ghi vào DB để lần sau sử dụng lại
+				callmapWrite := map[string]interface{}{
+					"key":  "lastBlock",
+					"data": strconv.FormatUint(fromBlock, 10),
+				}
+				err = database.WriteValueStorage(callmapWrite, h.DB)
+				if err != nil {
+					logger.Error("Failed to save initial lastBlock to DB:", err)
+				}
+		
+				logger.Info("🟢 First time setup: recorded current block as lastBlock: %d", fromBlock)
+			} else {
 				fromBlock, _ = strconv.ParseUint(string(lastBlockBytes), 0, 64)
 			}
-		}
-		for {
-			select {
-			default:
-				// Lấy latest block
-				latestBlock, err := utils.GetLatestBlockNumber(rpcURL)
-				if err != nil {
-					logger.Error("Failed to get latest block:", err)
-					time.Sleep(2 * time.Second)
-					continue
-				}
-
-				latestBlockUint, _ := strconv.ParseUint(latestBlock, 0, 64)
-				if latestBlockUint <= fromBlock {
-					time.Sleep(1 * time.Second)
-					continue
-				}
-
-				// Lặp qua từng topic để lấy log
-				topics := []string{tokenRequestTopic, chargeRequestTopic, chargeRejectedTopic}
-				for _, topic := range topics {
-					logs, err := utils.GetLogs(
-						rpcURL, 
-						fmt.Sprintf("0x%x", fromBlock+1), 
-						fmt.Sprintf("0x%x", latestBlockUint), 
-						contractAddress, 
-						topic)
+			for {
+				select {
+				default:
+					// Lấy latest block
+					latestBlock, err := utils.GetLatestBlockNumber(rpcURL)
 					if err != nil {
-						logger.Error("Error fetching logs for topic", topic, ":", err)
+						logger.Error("Failed to get latest block:", err)
+						time.Sleep(2 * time.Second)
+						continue
+					}
+
+					latestBlockUint, _ := strconv.ParseUint(latestBlock, 0, 64)
+					if latestBlockUint <= fromBlock {
 						time.Sleep(1 * time.Second)
 						continue
 					}
 
-					for _, raw := range logs {
-						var log model.EventLog
-						if err := json.Unmarshal(raw, &log); err != nil {
-							logger.Warn("Cannot decode event log:", err)
+					// Lặp qua từng topic để lấy log
+					topics := []string{tokenRequestTopic, chargeRequestTopic, chargeRejectedTopic}
+					for _, topic := range topics {
+						logs, err := utils.GetLogs(
+							rpcURL, 
+							fmt.Sprintf("0x%x", fromBlock+1), 
+							fmt.Sprintf("0x%x", latestBlockUint), 
+							contractAddress, 
+							topic)
+						if err != nil {
+							logger.Error("Error fetching logs for topic", topic, ":", err)
+							time.Sleep(1 * time.Second)
 							continue
 						}
-						h.eventChan <- log
-					}
-				}
-				callmap := map[string]interface{}{
-					"key":  "lastBlock",
-					"data": (strconv.FormatUint(latestBlockUint, 10)),
-				}
-				err = database.WriteValueStorage(callmap, h.DB)
-		
-				if err != nil {
-					logger.Error("Failed to save lastBlock to DB:", err)
-				}
-				fromBlock = latestBlockUint
 
-				time.Sleep(1 * time.Second)
+						for _, raw := range logs {
+							var log model.EventLog
+							if err := json.Unmarshal(raw, &log); err != nil {
+								logger.Warn("Cannot decode event log:", err)
+								continue
+							}
+							h.eventChan <- log
+						}
+					}
+					callmap := map[string]interface{}{
+						"key":  "lastBlock",
+						"data": (strconv.FormatUint(latestBlockUint, 10)),
+					}
+					err = database.WriteValueStorage(callmap, h.DB)
+			
+					if err != nil {
+						logger.Error("Failed to save lastBlock to DB:", err)
+					}
+					fromBlock = latestBlockUint
+
+					time.Sleep(1 * time.Second)
+				}
 			}
 		}
 	}()

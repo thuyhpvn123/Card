@@ -24,3 +24,13 @@
 13:25:14.218519 version@stat F·[2] S·2KiB[2KiB] Sc·[0.50]
 13:25:14.247631 db@janitor F·4 G·0
 13:25:14.247658 db@open done T·50.090748ms
+=============== May 17, 2025 (+07) ===============
+13:39:01.964767 log@legend F·NumFile S·FileSize N·Entry C·BadEntry B·BadBlock Ke·KeyError D·DroppedEntry L·Level Q·SeqNum T·TimeElapsed
+13:39:01.965441 version@stat F·[2] S·2KiB[2KiB] Sc·[0.50]
+13:39:01.965463 db@open opening
+13:39:01.965510 journal@recovery F·1
+13:39:01.965539 journal@recovery recovering @6
+13:39:01.990643 memdb@flush created L0@8 N·1 S·126B "las..ock,v19":"las..ock,v19"
+13:39:01.990832 version@stat F·[3] S·2KiB[2KiB] Sc·[0.75]
+13:39:02.032590 db@janitor F·5 G·0
+13:39:02.032609 db@open done T·67.139683ms
