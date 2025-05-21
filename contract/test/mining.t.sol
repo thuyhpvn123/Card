@@ -37,7 +37,9 @@ contract MiningContractsTest is Test {
     MockERC20 public usdtToken;
     PublicKeyFromPrivateKeyMock public keyContract;
     // Code public codeContract;
+    // Code codeContract;
     MockCode codeContract;
+
     // Accounts
     address public owner;
     address public user1;
@@ -124,16 +126,17 @@ contract MiningContractsTest is Test {
     // ========================= MiningUser Tests =========================
         function testRefUserViaQRCodeAndProcessUserWithOTP() public {
         vm.warp(currentTime);
-        address userA = 0x043E61E490EC76Aa636758D72A15201923593C72;
-        // address userA = 0xdf182ed5CF7D29F072C429edd8BFCf9C4151394B;
+        // address userA = 0x043E61E490EC76Aa636758D72A15201923593C72;
+        address userA = 0xdf182ed5CF7D29F072C429edd8BFCf9C4151394B;
         // Create referral signature
-        string memory token = "cvDcIPJQTimmy22dsznjUs:APA91bGAT9ONKBckTc4Uv1E_7SOrfgVJkjn-1AwT1wkBpSkGyQeooJ64RpPbDVSU_y7CIqS-X5vVmQFooXq_ACBnhJ32NRoCyh2GliS2Ogrl3ORZyOiZ4c8";
+        // string memory token = "cvDcIPJQTimmy22dsznjUs:APA91bGAT9ONKBckTc4Uv1E_7SOrfgVJkjn-1AwT1wkBpSkGyQeooJ64RpPbDVSU_y7CIqS-X5vVmQFooXq_ACBnhJ32NRoCyh2GliS2Ogrl3ORZyOiZ4c8";
+        string memory token = "fhgwzThJRciYxtivwue_p4:APA91bGbyanMsZ_99BvQ7mYoGH8hNEL6gsCEfVBeFtzmS8ioVQ2B2QajmuXcq1z-m4f-HyBQ5x0IaDZJ6iOm-hWgF_lDJ4wbaoaCRLC0Gx2k43BQdmiVXgY";
         // bytes32 message = keccak256(abi.encodePacked(token));
         // bytes memory message = hex"7ab6c6cf26984742859b7007ffe31f05";
         // (uint8 v, bytes32 r, bytes32 s) = vm.sign(user1PrivateKey, message);
         // bytes memory signature = abi.encodePacked(r, s, v);
-        bytes memory signature = hex"3ffd9a78be168c573d15a2dd7fc90ade3cc4d667a5615ac645eb195c94b3f2a32a9f50f8a9c4c6c70942c1cd82a00b87bbf0fcdf40f642280dab38d1980bf13b00";
-        // bytes memory signature = hex"5eaed28525b8427b950dd913fe01dfb28c89eb1545f968c2de0469802e35043401863a99f48427a70c8894fef06c3c286509d4ece9675f1e74f509277f9cbbea01";
+        // bytes memory signature = hex"3ffd9a78be168c573d15a2dd7fc90ade3cc4d667a5615ac645eb195c94b3f2a32a9f50f8a9c4c6c70942c1cd82a00b87bbf0fcdf40f642280dab38d1980bf13b00";
+        bytes memory signature = hex"b229e507b6b2a9d2fad28b73e68f3ec8c7ceb401886a3421e1cff3cb1435d7560fead7fc34bc9358fee9df58dd88aaacd547feaa8bd95a088835d0f8cc65168a01";
 
         // Refer userA by user2( user2 gioi thieu userA)
         vm.prank(user2);//nguoi gioi thieu
@@ -302,9 +305,16 @@ contract MiningContractsTest is Test {
 
     function GetByteCode()public{
         // refUserViaQRCode
-        address userA = 0xdf182ed5CF7D29F072C429edd8BFCf9C4151394B;
-        string memory token = "cvDcIPJQTimmy22dsznjUs:APA91bGAT9ONKBckTc4Uv1E_7SOrfgVJkjn-1AwT1wkBpSkGyQeooJ64RpPbDVSU_y7CIqS-X5vVmQFooXq_ACBnhJ32NRoCyh2GliS2Ogrl3ORZyOiZ4c8";
-        bytes memory signature = hex"5eaed28525b8427b950dd913fe01dfb28c89eb1545f968c2de0469802e35043401863a99f48427a70c8894fef06c3c286509d4ece9675f1e74f509277f9cbbea01";
+        // address userA = 0xdf182ed5CF7D29F072C429edd8BFCf9C4151394B;
+        // string memory token = "fhgwzThJRciYxtivwue_p4:APA91bGbyanMsZ_99BvQ7mYoGH8hNEL6gsCEfVBeFtzmS8ioVQ2B2QajmuXcq1z-m4f-HyBQ5x0IaDZJ6iOm-hWgF_lDJ4wbaoaCRLC0Gx2k43BQdmiVXgY";
+        // bytes memory signature = hex"b229e507b6b2a9d2fad28b73e68f3ec8c7ceb401886a3421e1cff3cb1435d7560fead7fc34bc9358fee9df58dd88aaacd547feaa8bd95a088835d0f8cc65168a01";
+        // address userA = 0xdf182ed5CF7D29F072C429edd8BFCf9C4151394B;
+        // string memory token = "fhgwzThJRciYxtivwue_p4:APA91bGbyanMsZ_99BvQ7mYoGH8hNEL6gsCEfVBeFtzmS8ioVQ2B2QajmuXcq1z-m4f-HyBQ5x0IaDZJ6iOm-hWgF_lDJ4wbaoaCRLC0Gx2k43BQdmiVXgY";
+        // bytes memory signature = hex"b229e507b6b2a9d2fad28b73e68f3ec8c7ceb401886a3421e1cff3cb1435d7560fead7fc34bc9358fee9df58dd88aaacd547feaa8bd95a088835d0f8cc65168a01";
+        address userA = 0x68B45379FEa4d354685e1C473962475a8119a2ba;
+        string memory token = "fhgwzThJRciYxtivwue_p4:APA91bGbyanMsZ_99BvQ7mYoGH8hNEL6gsCEfVBeFtzmS8ioVQ2B2QajmuXcq1z-m4f-HyBQ5x0IaDZJ6iOm-hWgF_lDJ4wbaoaCRLC0Gx2k43BQdmiVXgY";
+        bytes memory signature = hex"6ea3ce4092a57f8bfac7df2ad5f9371118324b0900309b70223c465cfc99073d1d9a23f0fe3cde6ea140aeaaa750f1a1c01933c4e3a684ed2adea3cabdd28fae00";
+
         // Refer user2 by user1
         vm.prank(user2);
         bytes memory bytesCodeCall = abi.encodeCall(

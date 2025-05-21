@@ -1,10 +1,10 @@
 API_PORT: ":8088"
 MetaNodeVersion: "0.0.1.0"
-DnsLink_: "http://127.0.0.1:7080/api/dns/connection-address/"
+DnsLink_: "http://34.124.142.148:7080/api/dns/connection-address/"
 
 ParentAddress: "9065e2caaa4bf6533ded0b2a763e4ee81cd31bd2"
 NodeConnectionAddress: "node"
-ParentConnectionAddress: "0.0.0.0:4200"
+ParentConnectionAddress: "34.124.142.148:4200"
 ParentConnectionType: "client"
 ConnectionAddress_: "0x1eF5a8c5403c5aA1d43a8DC9eD391351012551Cf"
 ChainId: 991
@@ -15,7 +15,7 @@ StorageConnectionAddress: "storage"
 PrivateKey_: "2b3aa0f620d2d73c046cd93eb64f2eb687a95b22e278500aa251c8c9dda1203b"
 
 CardABIPath: "../abi/card.json"
-CardAddress: "0x290eD8A174b03bc73dBb4F2E876d0E481C141A22"
+CardAddress: "0x5856880D4A8e80159d59fD296aaA2cbC1715AfcD"
 
 ServerPrivateKeyPath: "./private_key"
 AdminAddress: "24a71d62735be23ab6bc6b34df875235ff7b39e0" # Admin Address
@@ -23,4 +23,5 @@ AdminAddress: "24a71d62735be23ab6bc6b34df875235ff7b39e0" # Admin Address
 PathLevelDB: "../db"
 ThirdPartyApiUrl: "https://payment-card.vipn.net/transaction/create"
 StoredPubKey: "./public_key"
-RpcURL: "http://localhost:8545"
+RpcURL: "https://rpc-proxy-sequoia.ibe.app:8446"
+

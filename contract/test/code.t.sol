@@ -15,6 +15,8 @@ contract CodeTest is Test {
     // bytes32 private  PUBLIC_KEY_BYTES = bytes32(uint256(1));
     // bytes  PUBLIC_KEY = vm.toPublicKey(PRIVATE_KEY);
     address user2 = address(0x666);
+    // address user1 = address(0x555);
+    address userA = 0xdf182ed5CF7D29F072C429edd8BFCf9C4151394B;
     constructor() {
         for (uint i=1;i<=12;i++){
             address daoMember = generateAddress(i);
@@ -24,7 +26,103 @@ contract CodeTest is Test {
         vm.prank(deployer);
         codeContract = new Code(daoMemberArr);     
         vm.prank(deployer);
-        codeContract.setMintLimit(user1, 100); 
+        codeContract.setMintLimit(userA, 100); 
+        vm.prank(deployer);
+        codeContract.setMintLimit(user1, 100);
+    }
+     function testActivateCodeFlow() public {
+        // Tạo publicKey giả lập
+        bytes memory publicKey = hex'43ecc93c2949c17cbc9d525e910f91ffc13835786d6da1ddd49347bad123f6fe2fb89c7dcbba6ba85fb976956229fc4daa6ef3676a5df3a89cb5bbb3fe68b327';
+        // Thông số cho code
+        uint256 boostRate = 100;
+        uint256 maxDuration = block.timestamp + 30 days;
+        bool transferable = true;
+        
+        // User1 yêu cầu tạo code mới
+        vm.startPrank(userA);
+        console.log("userA:",userA);
+        bytes memory newCode = codeContract.requestCode(
+            publicKey,
+            boostRate,
+            maxDuration,
+            userA, // assignedTo
+            address(0x123), // can có người giới thiệu moi activate dc code
+            0, // không có phần thưởng giới thiệu
+            transferable
+        );
+        vm.stopPrank();
+        // Kiểm tra code đã được tạo với trạng thái pending
+        (
+            bytes memory storedPublicKey,
+            uint256 storedBoostRate,
+            uint256 storedMaxDuration,
+            Code.CodeStatus status,
+            address assignedTo,
+            address referrer,
+            uint256 referralReward,
+            bool isTransferable,
+            uint256 lockUntil,
+            Code.LockType lockType
+        ) = codeContract.miningCodes(newCode);
+
+        assertEq(keccak256(storedPublicKey), keccak256(publicKey), "Public key should match");
+        assertEq(storedBoostRate, boostRate, "Boost rate should match");
+        assertEq(storedMaxDuration, maxDuration, "Max duration should match");
+        assertEq(uint(status), uint(Code.CodeStatus.Pending), "Status should be Pending");
+        assertEq(assignedTo, userA, "Assigned to should be userA");
+
+        // DAO members vote để phê duyệt code
+        for (uint i = 0; i < 9; i++) {
+            // Cần 9 phiếu phê duyệt
+            address voter = daoMemberArr[i];          
+          // DAO member vote
+            vm.prank(voter);
+            codeContract.voteCode(newCode, true);
+        }
+
+        // Kiểm tra code đã được phê duyệt
+        (,,,status,,,,,, ) = codeContract.miningCodes(newCode);
+        assertEq(uint(status), uint(Code.CodeStatus.Approved), "Status should be Approved");
+        
+        // Kích hoạt code
+        vm.prank(userA);
+        (uint256 returnedBoostRate, uint256 returnedMaxDuration, uint256 expireTime) = codeContract.activateCode(0);
+        
+        // Kiểm tra các giá trị trả về
+        assertEq(returnedBoostRate, boostRate, "Returned boost rate should match");
+        assertEq(returnedMaxDuration, maxDuration, "Returned max duration should match");
+        assertEq(expireTime, 365 days, "Expire time should be 365 days");
+
+        // Kiểm tra trạng thái code sau khi kích hoạt
+        (,,,status,,,,,, ) = codeContract.miningCodes(newCode);
+        assertEq(uint(status), uint(Code.CodeStatus.Actived), "Status should be Actived");
+        transferCode(newCode,publicKey);
+    }
+
+     function transferCode(bytes memory oldCodeHash,bytes memory publicKey) public {
+        // Prepare transfer message and signature
+        string memory command = "transfer";
+        uint256 newPublicKeyParam = 2; // Different public key
+        bytes memory message = abi.encode(command, newPublicKeyParam);
+        // // Setup: Request, approve and activate a code first
+        // bytes memory oldCodeHash = _setupActiveCode();
+
+        bytes memory signature = hex'd2e72816fed61387c3f6aa63249a7d4b9ee85429272b947f76f01aac0baefc6d7922b6088416a4883fa6255de11478fde982fc8465cd5329356c0c2efcb62edc01';
+        
+        // Generate new code hash for comparison
+        bytes memory newPublicKey = abi.encodePacked(bytes32(newPublicKeyParam));
+        bytes memory newCodeHash = codeContract.generateCode(newPublicKey);
+        
+        // Transfer the code
+        codeContract.transferCode(publicKey, message, signature);
+
+        // Verify old code is deleted
+        (,,,Code.CodeStatus oldStatus,,,,,,) = codeContract.miningCodes(oldCodeHash);
+        assertEq(uint256(oldStatus), 0);
+
+        // Verify new code exists
+        (,,,Code.CodeStatus newStatus,,,,,,) = codeContract.miningCodes(newCodeHash);
+        assertEq(uint256(newStatus), uint256(Code.CodeStatus.Actived));
     }
     function testIsValidCode_ValidCode() public view{
         bytes memory publicKey = hex"1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
@@ -157,36 +255,6 @@ contract CodeTest is Test {
         codeContract.requestCode(hex"3234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", 300, 3600, user1, address(0), 0, true);
         vm.stopPrank();
     }
-    //  function test_TransferCode_Success() public {
-    //     // Prepare transfer message and signature
-    //     string memory command = "transfer";
-    //     uint256 newPublicKeyParam = 2; // Different public key
-    //     bytes memory message = abi.encode(command, newPublicKeyParam);
-
-    //     // Compute the full public key
-    //     (uint8 v, bytes32 r, bytes32 s) = vm.sign(PRIVATE_KEY, keccak256(message));
-    //     bytes memory publicKey = getPublicKeyFromSignature(r,s);
-
-    //     // Setup: Request, approve and activate a code first
-    //     bytes memory oldCodeHash = _setupActiveCode();
-
-        // bytes memory signature = _sign(PRIVATE_KEY, keccak256(message));
-        
-        // // Generate new code hash for comparison
-        // bytes memory newPublicKey = abi.encodePacked(bytes32(newPublicKeyParam));
-        // bytes memory newCodeHash = codeContract.generateCode(newPublicKey);
-        
-        // // Transfer the code
-        // codeContract.transferCode(publicKey, message, signature);
-
-        // // Verify old code is deleted
-        // (,,,Code.CodeStatus oldStatus,,,,,,) = codeContract.miningCodes(oldCodeHash);
-        // assertEq(uint256(oldStatus), 0);
-
-        // // Verify new code exists
-        // (,,,Code.CodeStatus newStatus,,,,,,) = codeContract.miningCodes(newCodeHash);
-        // assertEq(uint256(newStatus), uint256(Code.CodeStatus.Actived));
-    // }
 
     // function test_TransferCode_Fails_WhenNotOwner() public {
     //     vm.prank(recipient);
