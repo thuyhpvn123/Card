@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import "forge-std/Test.sol";
 import "../src/mining.sol";
 import "../src/code.sol";
-
+import "../src/PublicKeyFromPrivateKey.sol";
 // Mock contract for PublicKeyFromPrivateKey
 contract PublicKeyFromPrivateKeyMock  {
    function getPublicKeyFromPrivate(bytes memory _privateKey) external pure returns (bytes32) {
@@ -36,6 +36,7 @@ contract MiningContractsTest is Test {
     MiningCode public miningCode;
     MockERC20 public usdtToken;
     PublicKeyFromPrivateKeyMock public keyContract;
+    // CallerContract public keyContract;
     // Code public codeContract;
     // Code codeContract;
     MockCode codeContract;
@@ -87,7 +88,8 @@ contract MiningContractsTest is Test {
         
         // // Deploy PublicKeyFromPrivateKey mock
         keyContract = new PublicKeyFromPrivateKeyMock();
-        
+        // keyContract = new CallerContract();
+
         // Deploy contracts
         getJob = new GetJob();
         miningDevice = new MiningDevice();

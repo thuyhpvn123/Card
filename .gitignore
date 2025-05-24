@@ -9,6 +9,5 @@ contract/out
 contract/node_modules
 contract/lib
 .github
-contract/src
 .env
 db/

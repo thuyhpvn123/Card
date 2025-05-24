@@ -26,9 +26,9 @@ contract CodeTest is Test {
         vm.prank(deployer);
         codeContract = new Code(daoMemberArr);     
         vm.prank(deployer);
-        codeContract.setMintLimit(userA, 100); 
-        vm.prank(deployer);
-        codeContract.setMintLimit(user1, 100);
+        // codeContract.setMintLimit(userA, 100); 
+        // vm.prank(deployer);
+        // codeContract.setMintLimit(user1, 100);
     }
      function testActivateCodeFlow() public {
         // Tạo publicKey giả lập
@@ -40,7 +40,6 @@ contract CodeTest is Test {
         
         // User1 yêu cầu tạo code mới
         vm.startPrank(userA);
-        console.log("userA:",userA);
         bytes memory newCode = codeContract.requestCode(
             publicKey,
             boostRate,
@@ -83,7 +82,9 @@ contract CodeTest is Test {
         // Kiểm tra code đã được phê duyệt
         (,,,status,,,,,, ) = codeContract.miningCodes(newCode);
         assertEq(uint(status), uint(Code.CodeStatus.Approved), "Status should be Approved");
-        
+        bytes[] memory codesArr = codeContract.getCodesByOwner(userA);
+        console.log("codesArr.length:",codesArr.length);
+
         // Kích hoạt code
         vm.prank(userA);
         (uint256 returnedBoostRate, uint256 returnedMaxDuration, uint256 expireTime) = codeContract.activateCode(0);
@@ -97,6 +98,45 @@ contract CodeTest is Test {
         (,,,status,,,,,, ) = codeContract.miningCodes(newCode);
         assertEq(uint(status), uint(Code.CodeStatus.Actived), "Status should be Actived");
         transferCode(newCode,publicKey);
+        GetByteCode();
+    }
+    function GetByteCode()public {
+        address user3 = 0xdf182ed5CF7D29F072C429edd8BFCf9C4151394B;
+        bytes memory bytesCodeCall = abi.encodeCall(
+            codeContract.getCodesByOwner,
+            (    
+                user3        
+            )
+        );
+        console.log("Code getCodesByOwner: ");
+        console.logBytes(bytesCodeCall);
+        console.log(
+            "-----------------------------------------------------------------------------"
+        );
+
+        // requestCode
+        bytes memory publicKey1 = hex'43ecc93c2949c17cbc9d525e910f91ffc13835786d6da1ddd49347bad123f6fe2fb89c7dcbba6ba85fb976956229fc4daa6ef3676a5df3a89cb5bbb3fe68b327';
+        uint256 boostRate = 100;
+        uint256 maxDuration = block.timestamp + 30 days;
+        bool transferable = true;
+
+        bytesCodeCall = abi.encodeCall(
+            codeContract.requestCode,
+            (            
+                publicKey1,
+                boostRate,
+                maxDuration,
+                user3, // assignedTo
+                address(0x123), // can có người giới thiệu moi activate dc code
+                0, // không có phần thưởng giới thiệu
+                transferable
+            )
+        );
+        console.log("Code requestCode: ");
+        console.logBytes(bytesCodeCall);
+        console.log(
+            "-----------------------------------------------------------------------------"
+        );
     }
 
      function transferCode(bytes memory oldCodeHash,bytes memory publicKey) public {
@@ -235,8 +275,6 @@ contract CodeTest is Test {
         
         // Check that the code has been deleted after reaching required denial votes
         (bytes memory publicKeyKq,uint256 boostRate,,Code.CodeStatus status,,,,,,) = codeContract.miningCodes(generatedCode);
-        console.log("status:",uint8(status));
-        console.logBytes(publicKeyKq);
         assertEq(publicKeyKq.length,0, "Code should be deleted after denial");
         assertEq(uint8(status),0,"Status of code should be pending");
         assertEq(boostRate,0,"boostRate of code should be 0");
@@ -244,8 +282,8 @@ contract CodeTest is Test {
     }
     function testMintLimit() public {
         vm.prank(deployer);
-        uint256 limit = 2;
-        codeContract.setMintLimit(user1,limit);
+        // uint256 limit = 2;
+        // codeContract.setMintLimit(user1,limit);
 
         vm.startPrank(user1);
         codeContract.requestCode(hex"1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", 100, 3600, user1, address(0), 0, true);
