@@ -263,12 +263,14 @@ contract Code {
     //     emit CodeActivated(code);
     // }
 // Activate a code with signature verification
+//bên miningCode gọi sang
     function activateCode(
-        uint256 indexCode
+        uint256 indexCode, //vi du mang indexCode = 1 thi code o vi tri 0 trong mang ownerCodes[user]
+        address user
     ) external returns (uint256, uint256, uint256) {
-        // require(indexCode > 0, "Index code not found");
-        require(ownerCodes[msg.sender].length >0,"no code of sender exists");
-        bytes memory code = ownerCodes[msg.sender][indexCode];
+        require(indexCode > 0, "Index code not found");
+        require(ownerCodes[user].length >0,"no code of sender exists");
+        bytes memory code = ownerCodes[user][indexCode -1];
         // require(code.length > 0, "Code not found in user");
 
         // bytes memory publicKey,

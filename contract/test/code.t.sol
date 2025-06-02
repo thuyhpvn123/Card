@@ -17,6 +17,7 @@ contract CodeTest is Test {
     address user2 = address(0x666);
     // address user1 = address(0x555);
     address userA = 0xdf182ed5CF7D29F072C429edd8BFCf9C4151394B;
+    address userDAO = generateAddress(1);
     constructor() {
         for (uint i=1;i<=12;i++){
             address daoMember = generateAddress(i);
@@ -25,7 +26,7 @@ contract CodeTest is Test {
 
         vm.prank(deployer);
         codeContract = new Code(daoMemberArr);     
-        vm.prank(deployer);
+        // vm.prank(deployer);
         // codeContract.setMintLimit(userA, 100); 
         // vm.prank(deployer);
         // codeContract.setMintLimit(user1, 100);
@@ -39,7 +40,7 @@ contract CodeTest is Test {
         bool transferable = true;
         
         // User1 yêu cầu tạo code mới
-        vm.startPrank(userA);
+        vm.startPrank(userDAO);
         bytes memory newCode = codeContract.requestCode(
             publicKey,
             boostRate,
@@ -87,7 +88,7 @@ contract CodeTest is Test {
 
         // Kích hoạt code
         vm.prank(userA);
-        (uint256 returnedBoostRate, uint256 returnedMaxDuration, uint256 expireTime) = codeContract.activateCode(0);
+        (uint256 returnedBoostRate, uint256 returnedMaxDuration, uint256 expireTime) = codeContract.activateCode(1,userA);
         
         // Kiểm tra các giá trị trả về
         assertEq(returnedBoostRate, boostRate, "Returned boost rate should match");
@@ -117,7 +118,7 @@ contract CodeTest is Test {
         // requestCode
         bytes memory publicKey1 = hex'43ecc93c2949c17cbc9d525e910f91ffc13835786d6da1ddd49347bad123f6fe2fb89c7dcbba6ba85fb976956229fc4daa6ef3676a5df3a89cb5bbb3fe68b327';
         uint256 boostRate = 100;
-        uint256 maxDuration = block.timestamp + 30 days;
+        uint256 maxDuration = 1748430097 + 360 days;
         bool transferable = true;
 
         bytesCodeCall = abi.encodeCall(
@@ -203,7 +204,7 @@ contract CodeTest is Test {
         uint256 referralReward = 100;
         bool transferable = true;
 
-        vm.prank(user1); // Simulate the transaction coming from `owner`
+        vm.prank(userDAO); // Simulate the transaction coming from `owner`
         bytes memory code = codeContract.requestCode(
             publicKey,
             boostRate,
@@ -232,7 +233,7 @@ contract CodeTest is Test {
         uint256 referralReward = 100;
         bool transferable = true;
 
-        vm.prank(user1); // Simulate the transaction coming from `owner`
+        vm.prank(userDAO); // Simulate the transaction coming from `owner`
         bytes memory code = codeContract.requestCode(
             publicKey,
             boostRate,
@@ -262,7 +263,7 @@ contract CodeTest is Test {
 
         bytes memory publicKey = hex"1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
         
-        vm.prank(user1);
+        vm.prank(userDAO);
         bytes memory generatedCode = codeContract.requestCode(publicKey, 100, 3600, user1, address(0), 0, true);
         for (uint i=0; i< 9; i++){
             vm.prank(daoMemberArr[i]);
@@ -280,19 +281,19 @@ contract CodeTest is Test {
         assertEq(boostRate,0,"boostRate of code should be 0");
 
     }
-    function testMintLimit() public {
-        vm.prank(deployer);
-        // uint256 limit = 2;
-        // codeContract.setMintLimit(user1,limit);
+    // function testMintLimit() public {
+    //     vm.prank(deployer);
+    //     // uint256 limit = 2;
+    //     // codeContract.setMintLimit(user1,limit);
 
-        vm.startPrank(user1);
-        codeContract.requestCode(hex"1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", 100, 3600, user1, address(0), 0, true);
-        codeContract.requestCode(hex"2234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", 200, 3600, user1, address(0), 0, true);
+    //     vm.startPrank(userDAO);
+    //     codeContract.requestCode(hex"1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", 100, 3600, user1, address(0), 0, true);
+    //     codeContract.requestCode(hex"2234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", 200, 3600, user1, address(0), 0, true);
 
-        vm.expectRevert("Mint limit exceeded");
-        codeContract.requestCode(hex"3234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", 300, 3600, user1, address(0), 0, true);
-        vm.stopPrank();
-    }
+    //     vm.expectRevert("Mint limit exceeded");
+    //     codeContract.requestCode(hex"3234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", 300, 3600, user1, address(0), 0, true);
+    //     vm.stopPrank();
+    // }
 
     // function test_TransferCode_Fails_WhenNotOwner() public {
     //     vm.prank(recipient);

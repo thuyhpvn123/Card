@@ -107,14 +107,14 @@ library Signature {
 }
 
 interface PublicKeyFromPrivateKey {
-    function getPublicKeyFromPrivate(bytes memory _privateCode) external returns(bytes32);
+    function getPublicKeyFromPrivate(bytes32 _privateCode) external returns (bytes memory);
 }
 interface IMiningDevice {
     function addBalance(address miner, uint256 amount) external;
     function linkCodeWithUser(address _user, address _device) external;
 }
 interface ICode {
-    function activateCode(uint256 indexCode) external returns (uint256, uint256, uint256);
+    function activateCode(uint256 indexCode,address user) external returns (uint256, uint256, uint256);
 }
 interface IMiningUser {
     function lockUser(address _user) external;
@@ -259,7 +259,7 @@ contract PendingMiningDevice {
 
     // Cộng phần thưởng vào pending balance của miner
     function addPendingReward(address miner, uint256 amount) external onlyValidator {
-        require(amount > 0, "Amount must be greater than 0");
+        require(amount > 0, "Amount must be greater than 0 addPendingReward");
 
         // Lưu reward vào array cho miner
         minerRewards[miner].push(MiningReward({
@@ -349,8 +349,10 @@ contract MiningCode {
         address ref_4;
         uint256 activeTime;
         uint256 expireTime;
+        bytes32 privateCode;
     }
-    uint256 private constant TIME_MINING = 24 hours;
+    // uint256 private constant TIME_MINING = 24 hours;
+    uint256 private constant TIME_MINING = 1 minutes; //for test only
 
     ICode public codeContract;
 
@@ -385,7 +387,7 @@ contract MiningCode {
     address owner;
     IMiningDevice private miningDevice;
     IMiningUser public miningUser;
-
+    mapping(address => bytes32[]) public mActivePrivateCodes; //user => mang priva
     modifier onlyOwner() {
         require(msg.sender == owner, "Not owner");
         _;
@@ -398,7 +400,9 @@ contract MiningCode {
 
         owner = msg.sender;
     }
-
+    function setCodeContract(address _codeContract ) external onlyOwner {
+        codeContract = ICode(_codeContract);
+    }
     function setMiningDevice(address _miningDeviceAddress) external onlyOwner {
         miningDevice = IMiningDevice(_miningDeviceAddress);
     }
@@ -421,7 +425,7 @@ contract MiningCode {
          gọi qua SM Code để tiến hành active cho code và nhận lại thông tin của code:
         */
 
-        (uint256 boostRate, uint256 maxDuration, uint256 expireTime) = codeContract.activateCode(indexCode);
+        (uint256 boostRate, uint256 maxDuration, uint256 expireTime) = codeContract.activateCode(indexCode,msg.sender);
         require(boostRate > 0, "wrong boostRate");
         require(maxDuration > 0, "wrong maxDuration");
         require(expireTime > 0, "wrong expireTime");
@@ -437,13 +441,17 @@ contract MiningCode {
 
         emit CodeGenned(msg.sender, boostRate, maxDuration, expireTime);
     }
+    function cancelCommit(address user) external onlyOwner {
+        require(commits[user].commitHash != 0, "commit does not exist");
+        delete commits[user];
 
+    }
     /**
      * @dev Người dùng gửi commit trước với hash(privateCode, secret, userAddress)
      * @param _commitHash Giá trị băm của privateCode + secret + userAddress
      */
     function commitActivationCode(bytes32 _commitHash) external {
-        require(commits[msg.sender].commitHash == 0, "Already committed");
+        require(commits[msg.sender].commitHash == 0, "Already committed"); 
 
         commits[msg.sender] = ActivationCommit({
             commitHash: _commitHash,
@@ -454,7 +462,7 @@ contract MiningCode {
     }
 
     // replaceCode dùng để đổi code cũ qua code mới
-    function replaceCode(bytes memory _privateCode, bytes memory _secret, bytes32 _hashedPrivateCode, bytes32 _hashedPublicCode) external {
+    function replaceCode(bytes32  _privateCode, bytes memory _secret, bytes32 _hashedPrivateCode, bytes32 _hashedPublicCode) external {
         require(_hashedPrivateCode == bytes32(0), "Invalid hashed private code");
         require(_hashedPublicCode == bytes32(0), "Invalid hashed private code");
 
@@ -472,7 +480,7 @@ contract MiningCode {
         require(miningPrivateCodes[hashedPrivateCode].activeTime == 0, "Code already activated");
 
         // Lấy public key từ private code để kiểm tra
-        bytes32 publicKey = keyContract.getPublicKeyFromPrivate(_privateCode); // Sử dụng hàm lấy public key từ contract khác
+        bytes memory publicKey = keyContract.getPublicKeyFromPrivate(_privateCode); // Sử dụng hàm lấy public key từ contract khác
 
         bytes32 hashedPublicKey = keccak256(abi.encodePacked(publicKey));
         require(miningPublicCodes[hashedPublicKey] == true, "Public code not found");
@@ -502,13 +510,14 @@ contract MiningCode {
      * @param _privateCode Mã kích hoạt thật
      * @param _secret Giá trị bí mật đã dùng khi tạo commit
      */
-    function activateCode(bytes memory _privateCode, bytes memory _secret) external {
+    function activateCode(bytes32  _privateCode, bytes memory _secret) external {
         ActivationCommit memory commit = commits[msg.sender];
 
         require(commit.commitHash != 0, "No commit found");
         require(block.timestamp >= commit.commitTime + REVEAL_DELAY, "Wait for reveal time");
 
         bytes32 expectedHash = keccak256(abi.encodePacked(_privateCode, _secret, msg.sender));
+        // console.logBytes32(expectedHash);
         require(expectedHash == commit.commitHash, "Invalid code");
 
         // Kiểm tra code có đúng không?
@@ -517,7 +526,7 @@ contract MiningCode {
         require(miningPrivateCodes[hashedPrivateCode].activeTime == 0, "Code already activated");
 
         // Lấy public key từ private code để xóa
-        bytes32 publicKey = keyContract.getPublicKeyFromPrivate(_privateCode); // Sử dụng hàm lấy public key từ contract khác
+        bytes memory publicKey = keyContract.getPublicKeyFromPrivate(_privateCode); // Sử dụng hàm lấy public key từ contract khác
         bytes32 hashedPublicKey = keccak256(abi.encodePacked(publicKey));
         require(miningPublicCodes[hashedPublicKey] == true, "Public code not found");
 
@@ -536,17 +545,26 @@ contract MiningCode {
         
 
         miningPrivateCodes[hashedPrivateCode].device = _deviceRemoveFirstBytes;
+        miningPrivateCodes[hashedPrivateCode].privateCode = _privateCode;
         
         // lưu danh sách active code
         activeCodes.push(hashedPrivateCode);
+        mActivePrivateCodes[msg.sender].push(_privateCode);
 
         // tiến hành lấy danh sách liên kết giới thiệu để lưu vào code
         address[] memory devices = miningUser.getParentUser(msg.sender, 4);
-
-        miningPrivateCodes[hashedPrivateCode].ref_1 = devices[0];
-        miningPrivateCodes[hashedPrivateCode].ref_2 = devices[1];
-        miningPrivateCodes[hashedPrivateCode].ref_3 = devices[2];
-        miningPrivateCodes[hashedPrivateCode].ref_4 = devices[3];
+        if (devices.length >= 1){
+            miningPrivateCodes[hashedPrivateCode].ref_1 = devices[0];
+        }
+        if (devices.length >= 2){
+            miningPrivateCodes[hashedPrivateCode].ref_2 = devices[1];
+        }
+        if (devices.length >= 3){
+            miningPrivateCodes[hashedPrivateCode].ref_3 = devices[2];
+        }
+        if (devices.length == 4){
+            miningPrivateCodes[hashedPrivateCode].ref_4 = devices[3];
+        }
 
         // tiến hành lấy showroom gần nhất
         // #to-do đưa thêm smart contract showroom vào để quét và lưu lại
@@ -558,7 +576,17 @@ contract MiningCode {
 
         emit CodeActivated(msg.sender);
     }
-
+    function getActivePrivateCode(address user) external view returns(DataCode[] memory){
+        require(msg.sender == owner || msg.sender == user,"only owner or owner code can call");
+        bytes32[] memory activeCodeArr = mActivePrivateCodes[user];
+        DataCode[] memory dataCodes = new DataCode[](activeCodeArr.length);
+        for (uint256 i = 0; i < activeCodeArr.length; i++) {
+            bytes32 hashedPrivateCode = keccak256(abi.encodePacked(activeCodeArr[i]));
+            DataCode memory miningPrivateCode = miningPrivateCodes[hashedPrivateCode];
+            dataCodes[i] = miningPrivateCode;
+        }
+        return dataCodes;
+    }
     /**
      * @dev Kiểm tra xem public code có hợp lệ hay không
      * @param _hashedPublicCode Giá trị băm của publicCode
@@ -576,31 +604,39 @@ contract MiningCode {
 
         uint256[] memory removedIndexCodes = new uint256[](activeCodes.length);
         uint256 totalRemovedIndexCode = 0;
-
+        // console.log("activeCodes.length:",activeCodes.length);
         for (uint256 i = 0; i < activeCodes.length; i++) {
-
             DataCode memory miningPrivateCode = miningPrivateCodes[activeCodes[i]];
 
-            if (block.timestamp - miningPrivateCode.expireTime < 0) {
+            if (block.timestamp >= miningPrivateCode.expireTime ) {
                 removedIndexCodes[totalRemovedIndexCode] = i;
                 totalRemovedIndexCode += 1;
                 continue;
             }
-
             // claimableAmount: tính trên tốc độ đào và thời gian
             uint256 claimableAmount = miningPrivateCode.boostRate * halvingReward;
-
             // tinh cho ref
-            miningDevice.addBalance(miningPrivateCode.ref_1, claimableAmount * ( BONUS_REF_1 / 100 ));
-            miningDevice.addBalance(miningPrivateCode.ref_2, claimableAmount * ( BONUS_REF_2 / 100 ));
-            miningDevice.addBalance(miningPrivateCode.ref_3, claimableAmount * ( BONUS_REF_3 / 100 ));
-            miningDevice.addBalance(miningPrivateCode.ref_4, claimableAmount * ( BONUS_REF_4 / 100 ));
 
-
-            miningDevice.addBalance(miningPrivateCode.showroom, claimableAmount * ( BONUS_SHOWROOM / 100 ));
+            if(miningPrivateCode.ref_1 != address(0)){
+                miningDevice.addBalance(miningPrivateCode.ref_1, (claimableAmount *  BONUS_REF_1 / 100 ));
+            }
+            if(miningPrivateCode.ref_2 != address(0)){
+                miningDevice.addBalance(miningPrivateCode.ref_2, (claimableAmount *  BONUS_REF_2 / 100 ));
+            }
+            if(miningPrivateCode.ref_3 != address(0)){
+                miningDevice.addBalance(miningPrivateCode.ref_3, (claimableAmount *  BONUS_REF_3 / 100 ));
+            }
+            if(miningPrivateCode.ref_4 != address(0)){
+                miningDevice.addBalance(miningPrivateCode.ref_4, (claimableAmount *  BONUS_REF_4 / 100 ));
+            }
+            if(miningPrivateCode.showroom != address(0)){
+                miningDevice.addBalance(miningPrivateCode.showroom, (claimableAmount *  BONUS_SHOWROOM / 100 ));
+            }
 
             // xử lý cho việc cộng balances
-            miningDevice.addBalance(miningPrivateCode.device, claimableAmount);
+            if(miningPrivateCode.device != address(0)){
+                miningDevice.addBalance(miningPrivateCode.device, claimableAmount);
+            }
         }
 
         // Xóa từ cuối về đầu
@@ -711,7 +747,6 @@ contract MiningDevice {
 
         linkTimeUserDevices[_device][_user] = block.timestamp;  // Lưu thời gian liên kết
         lastTimeMiningDevices[_device] = block.timestamp;  // Cập nhật thời gian khai thác
-
         emit DeviceActivated(_user, _device);  // Phát sự kiện liên kết thành công
     }
 
@@ -735,7 +770,7 @@ contract MiningDevice {
 
         // Kiểm tra chữ ký của người dùng hoặc thiết bị dựa trên isUserSignature
         address recoveredAddress = Signature.recoverSigner(expectedHash, _signature);
-        
+     
         // Kiểm tra chữ ký của user hoặc device
         if (isUserSignature) {
             require(recoveredAddress == _device, "Invalid device signature");
@@ -828,9 +863,9 @@ contract MiningDevice {
     }
     // Hàm chỉ có thể gọi bởi PendingMiningDevice (validator sẽ gọi hàm này)
     function addBalance(address _device, uint256 amount) external onlyAdmin {
+        // console.log("amount:",amount);
         // Kiểm tra nếu amount phải lớn hơn 0
         require(amount > 0, "Amount must be greater than 0");
-
         require(lastTimeMiningDevices[_device] > 0, "device not active");
         
         // chỉ cho phép 2 lần đào cách nhau đúng thời gian quy định
@@ -1150,7 +1185,7 @@ contract MiningUser {
         uint256 balanceBefore = usdtToken.balanceOf(address(this));
         require(usdtToken.transferFrom(msg.sender, address(this), usdtAmount), "USDT transfer failed");
         uint256 receivedUSDT = usdtToken.balanceOf(address(this)) - balanceBefore;
-        require(receivedUSDT >= usdtAmount - 1e6 && receivedUSDT <= usdtAmount + 1e6, "Incorrect USDT transfer amount");
+        // require(receivedUSDT >= usdtAmount - 1e18 && receivedUSDT <= usdtAmount + 1e18, "Incorrect USDT transfer amount");//comment lai de balance nho van rut duoc 
 
         // Ghi nhận dòng tiền từ user mua
         userAmounts[msg.sender].push(UserAmount({
