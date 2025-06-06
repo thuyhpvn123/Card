@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "forge-std/console.sol";
+import "./interfaces/ICode.sol";
 /*
 * Luồng migrate số dư và code đào: có 2 smart contract là migrareWallet và migrateCode.
 
@@ -331,7 +332,7 @@ contract PendingMiningDevice {
  * - Sau ít nhất 15 giây, họ mới có thể gửi privateCode thật để active
  * - Cơ chế này giúp chống spam và chiếm quyền kích hoạt từ node pool
  */
-contract MiningCode {
+contract MiningCodeSC {
     struct ActivationCommit {
         bytes32 commitHash;
         uint256 commitTime;
@@ -1153,7 +1154,7 @@ contract MiningUser {
         require(!users[msg.sender].isLocked, "user is locked");
 
         uint256 expectedUSDT = 0;
-        if (halvingDeposit < 0) {
+        if (halvingDeposit < 0) {  //hien tai halvingDeposit = - 1000, chua co ham set lai
             expectedUSDT = resourceAmount / uint256(-1 * halvingDeposit);
         } else {
             expectedUSDT = resourceAmount * uint256(halvingDeposit);

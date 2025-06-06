@@ -34,7 +34,7 @@ contract MiningContractsTest is Test {
     MiningDevice public miningDevice;
     MiningUser public miningUser;
     PendingMiningDevice public pendingMiningDevice;
-    MiningCode public miningCode;
+    MiningCodeSC public miningCode;
     USDT public usdtToken;
     PublicKeyFromPrivateKeyMock public keyContract;
     // CallerContract public keyContract;
@@ -115,7 +115,7 @@ contract MiningContractsTest is Test {
         // codeContract = new Code(daoMemberArr);     
         // codeContract.setMintLimit(user1, 100); 
         codeContract = new MockCode();
-        miningCode = new MiningCode(address(keyContract), address(codeContract));
+        miningCode = new MiningCodeSC(address(keyContract), address(codeContract));
         
         // Setup contract connections
         miningCode.setMiningDevice(address(miningDevice));
@@ -187,7 +187,7 @@ contract MiningContractsTest is Test {
         // Step 3: User activates the code with the actual privateCode and secret
         vm.startPrank(user1);
         miningCode.activateCode(privateCode, secret);
-        MiningCode.DataCode[] memory dataCodes = miningCode.getActivePrivateCode(user1);
+        MiningCodeSC.DataCode[] memory dataCodes = miningCode.getActivePrivateCode(user1);
         assertEq(dataCodes.length,1);
 
         vm.stopPrank();

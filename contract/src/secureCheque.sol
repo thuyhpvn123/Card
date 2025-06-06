@@ -322,21 +322,48 @@ contract SecureCheque {
     /**
      * @notice Khôi phục địa chỉ ký từ chữ ký ECDSA
      */
-    function recoverSigner(bytes32 messageHash, bytes memory signature) public pure returns (address) {
-        bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
-        (bytes32 r, bytes32 s, uint8 v) = splitSignature(signature);
-        return ecrecover(ethSignedMessageHash, v, r, s);
+    // function recoverSigner(bytes32 messageHash, bytes memory signature) public pure returns (address) {
+    //     bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", messageHash));
+    //     (bytes32 r, bytes32 s, uint8 v) = splitSignature(signature);
+    //     return ecrecover(ethSignedMessageHash, v, r, s);
+    // }
+
+    // /**
+    //  * @notice Tách r, s, v từ signature chuẩn ECDSA
+    //  */
+    // function splitSignature(bytes memory sig) public pure returns (bytes32 r, bytes32 s, uint8 v) {
+    //     require(sig.length == 65, "Incorrect signature format");
+    //     assembly {
+    //         r := mload(add(sig, 32))
+    //         s := mload(add(sig, 64))
+    //         v := byte(0, mload(add(sig, 96)))
+    //     }
+    // }
+    function recoverSigner(bytes32 hash, bytes memory signature) internal pure returns (address) {
+        bytes32 r;
+        bytes32 s;
+        uint8 v;
+        bytes memory sign = add27ToLastByte(signature);
+        require(sign.length == 65, "Invalid signature length");
+        assembly {
+            r := mload(add(sign, 32))
+            s := mload(add(sign, 64))
+            v := byte(0, mload(add(sign, 96)))
+        }
+
+        return ecrecover(hash, v, r, s);
+    }
+    function add27ToLastByte(bytes memory input) public pure returns (bytes memory) {
+        require(input.length > 0, "Empty input");
+
+        // Copy input to new bytes
+        bytes memory output = input;
+
+        // Modify last byte
+        output[output.length - 1] = bytes1(uint8(output[output.length - 1]) + 27);
+
+        return output;
+
     }
 
-    /**
-     * @notice Tách r, s, v từ signature chuẩn ECDSA
-     */
-    function splitSignature(bytes memory sig) public pure returns (bytes32 r, bytes32 s, uint8 v) {
-        require(sig.length == 65, "Incorrect signature format");
-        assembly {
-            r := mload(add(sig, 32))
-            s := mload(add(sig, 64))
-            v := byte(0, mload(add(sig, 96)))
-        }
-    }
 }

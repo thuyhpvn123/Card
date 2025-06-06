@@ -3,6 +3,7 @@ pragma solidity ^0.8.19;
 
 import "forge-std/Test.sol";
 import "../src/code.sol";
+import "../src/interfaces/ICode.sol";
 import {console} from "forge-std/console.sol";
 
 contract CodeTest is Test {
@@ -56,19 +57,19 @@ contract CodeTest is Test {
             bytes memory storedPublicKey,
             uint256 storedBoostRate,
             uint256 storedMaxDuration,
-            Code.CodeStatus status,
+            CodeStatus status,
             address assignedTo,
             address referrer,
             uint256 referralReward,
             bool isTransferable,
             uint256 lockUntil,
-            Code.LockType lockType
+            LockType lockType
         ) = codeContract.miningCodes(newCode);
 
         assertEq(keccak256(storedPublicKey), keccak256(publicKey), "Public key should match");
         assertEq(storedBoostRate, boostRate, "Boost rate should match");
         assertEq(storedMaxDuration, maxDuration, "Max duration should match");
-        assertEq(uint(status), uint(Code.CodeStatus.Pending), "Status should be Pending");
+        assertEq(uint(status), uint(CodeStatus.Pending), "Status should be Pending");
         assertEq(assignedTo, userA, "Assigned to should be userA");
 
         // DAO members vote để phê duyệt code
@@ -82,9 +83,9 @@ contract CodeTest is Test {
 
         // Kiểm tra code đã được phê duyệt
         (,,,status,,,,,, ) = codeContract.miningCodes(newCode);
-        assertEq(uint(status), uint(Code.CodeStatus.Approved), "Status should be Approved");
+        assertEq(uint(status), uint(CodeStatus.Approved), "Status should be Approved");
         bytes[] memory codesArr = codeContract.getCodesByOwner(userA);
-        console.log("codesArr.length:",codesArr.length);
+        assertEq(1,codesArr.length,"code array should have 1 code");
 
         // Kích hoạt code
         vm.prank(userA);
@@ -97,47 +98,9 @@ contract CodeTest is Test {
 
         // Kiểm tra trạng thái code sau khi kích hoạt
         (,,,status,,,,,, ) = codeContract.miningCodes(newCode);
-        assertEq(uint(status), uint(Code.CodeStatus.Actived), "Status should be Actived");
+        assertEq(uint(status), uint(CodeStatus.Actived), "Status should be Actived");
         transferCode(newCode,publicKey);
         GetByteCode();
-    }
-    function GetByteCode()public {
-        address user3 = 0xdf182ed5CF7D29F072C429edd8BFCf9C4151394B;
-        bytes memory bytesCodeCall = abi.encodeCall(
-            codeContract.getCodesByOwner,
-            (    
-                user3        
-            )
-        );
-        console.log("Code getCodesByOwner: ");
-        console.logBytes(bytesCodeCall);
-        console.log(
-            "-----------------------------------------------------------------------------"
-        );
-
-        // requestCode
-        bytes memory publicKey1 = hex'43ecc93c2949c17cbc9d525e910f91ffc13835786d6da1ddd49347bad123f6fe2fb89c7dcbba6ba85fb976956229fc4daa6ef3676a5df3a89cb5bbb3fe68b327';
-        uint256 boostRate = 100;
-        uint256 maxDuration = 1748430097 + 360 days;
-        bool transferable = true;
-
-        bytesCodeCall = abi.encodeCall(
-            codeContract.requestCode,
-            (            
-                publicKey1,
-                boostRate,
-                maxDuration,
-                user3, // assignedTo
-                address(0x123), // can có người giới thiệu moi activate dc code
-                0, // không có phần thưởng giới thiệu
-                transferable
-            )
-        );
-        console.log("Code requestCode: ");
-        console.logBytes(bytesCodeCall);
-        console.log(
-            "-----------------------------------------------------------------------------"
-        );
     }
 
      function transferCode(bytes memory oldCodeHash,bytes memory publicKey) public {
@@ -158,12 +121,12 @@ contract CodeTest is Test {
         codeContract.transferCode(publicKey, message, signature);
 
         // Verify old code is deleted
-        (,,,Code.CodeStatus oldStatus,,,,,,) = codeContract.miningCodes(oldCodeHash);
+        (,,,CodeStatus oldStatus,,,,,,) = codeContract.miningCodes(oldCodeHash);
         assertEq(uint256(oldStatus), 0);
 
         // Verify new code exists
-        (,,,Code.CodeStatus newStatus,,,,,,) = codeContract.miningCodes(newCodeHash);
-        assertEq(uint256(newStatus), uint256(Code.CodeStatus.Actived));
+        (,,,CodeStatus newStatus,,,,,,) = codeContract.miningCodes(newCodeHash);
+        assertEq(uint256(newStatus), uint256(CodeStatus.Actived));
     }
     function testIsValidCode_ValidCode() public view{
         bytes memory publicKey = hex"1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
@@ -275,25 +238,12 @@ contract CodeTest is Test {
         assertEq(vote.denyVotes, 9, "Deny votes should be 9");
         
         // Check that the code has been deleted after reaching required denial votes
-        (bytes memory publicKeyKq,uint256 boostRate,,Code.CodeStatus status,,,,,,) = codeContract.miningCodes(generatedCode);
+        (bytes memory publicKeyKq,uint256 boostRate,,CodeStatus status,,,,,,) = codeContract.miningCodes(generatedCode);
         assertEq(publicKeyKq.length,0, "Code should be deleted after denial");
         assertEq(uint8(status),0,"Status of code should be pending");
         assertEq(boostRate,0,"boostRate of code should be 0");
 
     }
-    // function testMintLimit() public {
-    //     vm.prank(deployer);
-    //     // uint256 limit = 2;
-    //     // codeContract.setMintLimit(user1,limit);
-
-    //     vm.startPrank(userDAO);
-    //     codeContract.requestCode(hex"1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", 100, 3600, user1, address(0), 0, true);
-    //     codeContract.requestCode(hex"2234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", 200, 3600, user1, address(0), 0, true);
-
-    //     vm.expectRevert("Mint limit exceeded");
-    //     codeContract.requestCode(hex"3234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef", 300, 3600, user1, address(0), 0, true);
-    //     vm.stopPrank();
-    // }
 
     // function test_TransferCode_Fails_WhenNotOwner() public {
     //     vm.prank(recipient);
@@ -385,6 +335,44 @@ contract CodeTest is Test {
             s := mload(add(sig, 64))
             v := byte(0, mload(add(sig, 96)))
         }
+    }
+    function GetByteCode()public {
+        address user3 = 0xdf182ed5CF7D29F072C429edd8BFCf9C4151394B;
+        bytes memory bytesCodeCall = abi.encodeCall(
+            codeContract.getCodesByOwner,
+            (    
+                user3        
+            )
+        );
+        console.log("Code getCodesByOwner: ");
+        console.logBytes(bytesCodeCall);
+        console.log(
+            "-----------------------------------------------------------------------------"
+        );
+
+        // requestCode
+        bytes memory publicKey1 = hex'43ecc93c2949c17cbc9d525e910f91ffc13835786d6da1ddd49347bad123f6fe2fb89c7dcbba6ba85fb976956229fc4daa6ef3676a5df3a89cb5bbb3fe68b327';
+        uint256 boostRate = 100;
+        uint256 maxDuration = 1748430097 + 360 days;
+        bool transferable = true;
+
+        bytesCodeCall = abi.encodeCall(
+            codeContract.requestCode,
+            (            
+                publicKey1,
+                boostRate,
+                maxDuration,
+                user3, // assignedTo
+                address(0x123), // can có người giới thiệu moi activate dc code
+                0, // không có phần thưởng giới thiệu
+                transferable
+            )
+        );
+        console.log("Code requestCode: ");
+        console.logBytes(bytesCodeCall);
+        console.log(
+            "-----------------------------------------------------------------------------"
+        );
     }
 
 

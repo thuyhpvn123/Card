@@ -1,22 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 import "forge-std/console.sol";
+import "./interfaces/ICode.sol";
 contract Code {
-    enum CodeStatus { Pending, Approved, Actived, Expired }
-    enum LockType { None, ActiveLock, MiningLock, TransferLock }
-
-    struct MiningCode {
-        bytes publicKey;          // Public key (32 bytes)
-        uint256 boostRate;        // Mining boost rate
-        uint256 maxDuration;      // Maximum valid duration
-        CodeStatus status;        // Current status of the code
-        address assignedTo;       // Address that owns the code
-        address referrer;         // Address of the referrer
-        uint256 referralReward;   // Reward for the referrer
-        bool transferable;        // Whether the code is transferable
-        uint256 lockUntil;        // Lock timestampưe
-        LockType lockType;        // Type of lock
-    }
 
     struct Vote {
         uint256 approveVotes;     // Count of approval votes
@@ -37,6 +23,7 @@ contract Code {
     uint256 public constant REQUIRED_APPROVALS = 9;    // Number of approvals required to approve a code
 
     address public admin;
+    address public meLab;  // MeLab contract address
 
     event CodeRequested(bytes code, address indexed assignedTo);
     event CodeApproved(bytes code, address indexed assignedTo);
@@ -57,12 +44,18 @@ contract Code {
         require(isDAOMember(msg.sender), "Only DAO members can call this function");
         _;
     }
-
+    modifier onlyMeLab() {
+        require(msg.sender == meLab, "Only MeLab can call this function");
+        _;
+    }
     constructor(address[] memory _daoMembers) {
         admin = msg.sender;
         daoMembers = _daoMembers;
     }
-
+    // Set MeLab contract address
+    function setMeLab(address _meLab) external onlyAdmin {
+        meLab = _meLab;
+    }
     // Check if an address is a DAO member
     function isDAOMember(address member) public view returns (bool) {
         for (uint256 i = 0; i < daoMembers.length; i++) {
@@ -149,7 +142,7 @@ contract Code {
 
         bytes memory code = generateCode(publicKey); // Generate hashed code
         require(isValidCode(code), "Invalid code");
-
+        require(!codeExists(code), "Code already exists"); // Check for duplicates
         // mintLimits[msg.sender]--;
 
         miningCodes[code] = MiningCode({
@@ -227,6 +220,11 @@ contract Code {
             emit CodeCreatedForReferrer(referrerCode, referrer);
         }
     }
+     // Check if a code already exists in miningCodes
+    function codeExists(bytes memory code) public view returns (bool) {
+        return miningCodes[code].assignedTo != address(0);
+    }
+
     function getCodeStatus(bytes memory code) external view returns(Vote memory){
         Vote storage vote = votes[code];
         return vote;
@@ -431,5 +429,67 @@ contract Code {
         
         miningCode.status = CodeStatus.Expired;
         emit CodeExpired(code);
+    }
+    // NEW FUNCTION: Create code directly (called by MeLab after approval)
+    function createCodeDirect(
+        bytes memory publicKey,
+        uint256 boostRate,
+        uint256 maxDuration,
+        address assignedTo,
+        address referrer,
+        uint256 referralReward,
+        bool transferable
+    ) external onlyMeLab returns(bytes memory) {
+        bytes memory code = generateCode(publicKey); // Generate hashed code
+        require(isValidCode(code), "Invalid code");
+        require(!codeExists(code), "Code already exists"); // Check for duplicates
+        // Create the mining code directly with Approved status
+        miningCodes[code] = MiningCode({
+            publicKey: publicKey,
+            boostRate: boostRate,
+            maxDuration: maxDuration,
+            status: CodeStatus.Approved, // Directly approved
+            assignedTo: assignedTo,
+            referrer: referrer,
+            referralReward: referralReward,
+            transferable: transferable,
+            lockUntil: 0,
+            lockType: LockType.None
+        });
+
+        // Add to owner's codes
+        ownerCodes[assignedTo].push(code);
+        
+        emit CodeApproved(code, assignedTo);
+
+        // Handle referrer logic
+        if (referrer != address(0)) {
+            uint256 referrerNonce = userNonces[referrer];
+            bytes memory referrerPublicKey = abi.encodePacked(referrer, referrerNonce);
+            bytes memory referrerCode = generateCode(referrerPublicKey);
+
+            // Increment referrer nonce
+            userNonces[referrer]++;
+
+            // Create a new code for the referrer
+            miningCodes[referrerCode] = MiningCode({
+                publicKey: referrerPublicKey,
+                boostRate: boostRate / 30, // Referrer gets 1/30 boost rate of the main code
+                maxDuration: maxDuration,
+                status: CodeStatus.Approved,
+                assignedTo: referrer,
+                referrer: address(0),
+                referralReward: 0,
+                transferable: false,
+                lockUntil: 0,
+                lockType: LockType.None
+            });
+
+            ownerCodes[referrer].push(referrerCode);
+            
+            emit CodeCreatedForReferrer(referrerCode, referrer);
+        }
+
+        return code;
     }
 }

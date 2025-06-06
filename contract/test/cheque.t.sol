@@ -26,15 +26,15 @@ contract SecureChequeTest is Test {
         // Initialize keys and addresses
         deployerPrivKey = 0x1;
         trustedSignerPrivKey = 0x2;
-        userAPrivKey = 0x3;
-        userBPrivKey = 0x4;
-        userCPrivKey = 0x5;
+        // userAPrivKey = 0x3;
+        // userBPrivKey = 0x4;
+        // userCPrivKey = 0x5;
         
         deployer = vm.addr(deployerPrivKey);
         trustedSigner = vm.addr(trustedSignerPrivKey);
-        userA = vm.addr(userAPrivKey);
-        userB = vm.addr(userBPrivKey);
-        userC = vm.addr(userCPrivKey);
+        userA = 0xA620249dc17f23887226506b3eB260f4802a7efc;
+        userB = 0x043E61E490EC76Aa636758D72A15201923593C72;
+        userC = 0xdf182ed5CF7D29F072C429edd8BFCf9C4151394B;
         
         // Provide ETH for test addresses
         vm.deal(deployer, 100 ether);
@@ -101,9 +101,9 @@ contract SecureChequeTest is Test {
     function testRequestAndExecuteReclaim() public {
         // 1. Create mock pubKeyHash and register a cheque
         bytes32[] memory pubKeyHashes = new bytes32[](1);
-        pubKeyHashes[0] = keccak256(abi.encodePacked(userA));
+        pubKeyHashes[0] = keccak256(abi.encodePacked(userB));
         
-        vm.startPrank(userA);
+        vm.startPrank(userB);
         secureCheque.registerCheques{value: 60}(pubKeyHashes, 60);
         
         // 2. Request reclaim
@@ -114,12 +114,9 @@ contract SecureChequeTest is Test {
         assertTrue(reclaimTime > 0, "Reclaim time was not set");
         
         // 3. Create signature for reclaim
-        bytes32 reclaimHash = keccak256(abi.encodePacked(pubKeyHashes[0], "reclaim"));
-        bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", reclaimHash));
-        
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(userAPrivKey, ethSignedMessageHash);
-        bytes memory signature = abi.encodePacked(r, s, v);
-        
+        // bytes32 reclaimHash = keccak256(abi.encodePacked(pubKeyHashes[0], "reclaim"));
+        bytes memory signature = hex"2a7c7972ef14f1078dcb83fd94391f31f0b89634b8cd089f03f88591a6107f096f6e7995c10e25ad542900c258f0d21919e7f631d453675a41d29baa263db20e01";
+       
         bytes[] memory signatures = new bytes[](1);
         signatures[0] = signature;
         
@@ -127,7 +124,7 @@ contract SecureChequeTest is Test {
         vm.warp(block.timestamp + 72 hours + 1);
         
         // 5. Execute reclaim
-        uint256 balanceBefore = secureCheque.balances(userA);
+        uint256 balanceBefore = secureCheque.balances(userB);
         
         secureCheque.executeReclaim(pubKeyHashes, signatures);
         
@@ -136,7 +133,7 @@ contract SecureChequeTest is Test {
         assertEq(uint(status), uint(SecureCheque.ChequeStatus.Reclaimed), "Cheque was not marked as reclaimed");
         
         // Check if funds were added to balance
-        uint256 balanceAfter = secureCheque.balances(userA);
+        uint256 balanceAfter = secureCheque.balances(userB);
         assertEq(balanceAfter - balanceBefore, 60, "Refund amount is incorrect");
         
         vm.stopPrank();
@@ -146,9 +143,8 @@ contract SecureChequeTest is Test {
     function testPostIntentAndClaimCheque() public {
         // 1. Create and register a cheque
         vm.startPrank(userA);
-        
         bytes32[] memory pubKeyHashes = new bytes32[](1);
-        pubKeyHashes[0] = keccak256(abi.encodePacked(userA));
+        pubKeyHashes[0] = keccak256(abi.encodePacked(userB));
         secureCheque.registerCheques{value: 70}(pubKeyHashes, 70);
         
         vm.stopPrank();
@@ -157,12 +153,8 @@ contract SecureChequeTest is Test {
         vm.startPrank(userB);
         
         uint256 claimAmount = 30;
-        bytes32 claimHash = keccak256(abi.encodePacked(userB, claimAmount));
-        bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", claimHash));
-        
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(userAPrivKey, ethSignedMessageHash);
-        bytes memory sigInitial = abi.encodePacked(r, s, v);
-        
+        bytes memory sigInitial = hex"cb60c81cfd8f1c6b4834fb55a45fd2a4ed087993f267e379ce9ea02b19f1d7220d9627350db76f82733c2213ec15600b455bbb4e8e6ba1d74f6cd2f76ad2235201";
+      
         // Register intent
         bytes32 initialSigHash = keccak256(sigInitial);
         secureCheque.postClaimIntent(initialSigHash);
@@ -191,7 +183,7 @@ contract SecureChequeTest is Test {
         vm.startPrank(userA);
         
         bytes32[] memory pubKeyHashes = new bytes32[](1);
-        pubKeyHashes[0] = keccak256(abi.encodePacked(userA));
+        pubKeyHashes[0] = keccak256(abi.encodePacked(userB));
         secureCheque.registerCheques{value: 65}(pubKeyHashes, 65);
         
         vm.stopPrank();
@@ -199,20 +191,11 @@ contract SecureChequeTest is Test {
         // 2. Create transfer chain:
         // userA (65)-> userB (35) -> userC (25)
         
-        // Step 1: userA transfers to userB 35
-        bytes32 step1Hash = keccak256(abi.encodePacked(address(0), userB, uint256(35)));
-        bytes32 ethSignedStep1Hash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", step1Hash));
-        
-        (uint8 v1, bytes32 r1, bytes32 s1) = vm.sign(userAPrivKey, ethSignedStep1Hash);
-        bytes memory sigStep1 = abi.encodePacked(r1, s1, v1);
-        
-        // Step 2: userB transfers to userC 25
-        bytes32 step2Hash = keccak256(abi.encodePacked(userB, userC, uint256(25)));
-        bytes32 ethSignedStep2Hash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", step2Hash));
-        
-        (uint8 v2, bytes32 r2, bytes32 s2) = vm.sign(userBPrivKey, ethSignedStep2Hash);
-        bytes memory sigStep2 = abi.encodePacked(r2, s2, v2);
-        
+        // Step 1: userA transfers to userB: keccak256(abi.encodePacked(address(0), userB, uint256(10000000))); -userB ky
+        bytes memory sigStep1 = hex"4b5f291c1224f33eb0b7ee37533cccd2da8d6239d60f092ca24400698770f9bb7f11798b77f0297704a0d72959d7249957b7c95205f4de0b5e35235f38fbbeb001";
+        // Step 2: userB transfers to userC 25: keccak256(abi.encodePacked(userB, userC, uint256(25)))-userB ky lun
+         bytes memory sigStep2 = hex"6215d20d323853346ce346385909a3dbdb03e5ad3de13b5fb17933124c8da2064b9b4a9180380740b2a7d317743f7a431ee25dfc9589980d0059a0d8b993cb5601";
+       
         // 3. Create array of transfer steps
         vm.startPrank(userC);
         
@@ -254,23 +237,24 @@ contract SecureChequeTest is Test {
     // Test redeeming funds from balance
     function testRedeem() public {
         // 1. First set up a balance for userA
-        vm.startPrank(userA);
+        vm.startPrank(userB);
         
         // Create and register a cheque
         bytes32[] memory pubKeyHashes = new bytes32[](1);
-        pubKeyHashes[0] = keccak256(abi.encodePacked(userA));
+        pubKeyHashes[0] = keccak256(abi.encodePacked(userB));
         secureCheque.registerCheques{value: 1 ether}(pubKeyHashes, 1 ether);
         
         // Request reclaim
         secureCheque.requestReclaim(pubKeyHashes);
         
         // Create signature for reclaim
-        bytes32 reclaimHash = keccak256(abi.encodePacked(pubKeyHashes[0], "reclaim"));
-        bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", reclaimHash));
+        // bytes32 reclaimHash = keccak256(abi.encodePacked(pubKeyHashes[0], "reclaim"));
+        // bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", reclaimHash));
         
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(userAPrivKey, ethSignedMessageHash);
-        bytes memory signature = abi.encodePacked(r, s, v);
-        
+        // (uint8 v, bytes32 r, bytes32 s) = vm.sign(userAPrivKey, ethSignedMessageHash);
+        // bytes memory signature = abi.encodePacked(r, s, v);
+        bytes memory signature = hex"2a7c7972ef14f1078dcb83fd94391f31f0b89634b8cd089f03f88591a6107f096f6e7995c10e25ad542900c258f0d21919e7f631d453675a41d29baa263db20e01";
+       
         bytes[] memory signatures = new bytes[](1);
         signatures[0] = signature;
         
@@ -281,18 +265,17 @@ contract SecureChequeTest is Test {
         secureCheque.executeReclaim(pubKeyHashes, signatures);
         
         // 2. Check balance before redemption
-        uint256 balanceBefore = secureCheque.balances(userA);
+        uint256 balanceBefore = secureCheque.balances(userB);
         assertEq(balanceBefore, 1 ether, "Initial balance is incorrect");
         
-        uint256 ethBalanceBefore = address(userA).balance;
+        uint256 ethBalanceBefore = address(userB).balance;
         
         // 3. Redeem funds
         secureCheque.redeem(0.5 ether);
         
         // 4. Check balance after redemption
-        uint256 balanceAfter = secureCheque.balances(userA);
-        uint256 ethBalanceAfter = address(userA).balance;
-        
+        uint256 balanceAfter = secureCheque.balances(userB);
+        uint256 ethBalanceAfter = address(userB).balance;
         assertEq(balanceAfter, 0.5 ether, "Final balance is incorrect");
         assertEq(ethBalanceAfter - ethBalanceBefore, 0.5 ether, "ETH was not transferred correctly");
         
@@ -300,7 +283,7 @@ contract SecureChequeTest is Test {
     }
     
     // Test failure cases for registerCheques
-    function testFailRegisterChequesWithIncorrectAmount() public {
+    function test_Revert_When_RegisterChequesWithIncorrectAmount() public {
         bytes32[] memory pubKeyHashes = new bytes32[](2);
         pubKeyHashes[0] = keccak256(abi.encodePacked("pubKey1"));
         pubKeyHashes[1] = keccak256(abi.encodePacked("pubKey2"));
@@ -309,12 +292,13 @@ contract SecureChequeTest is Test {
         
         vm.startPrank(userA);
         // Send incorrect amount (less than required)
+         vm.expectRevert("Incorrect total amount");
         secureCheque.registerCheques{value: amount}(pubKeyHashes, amount);
         vm.stopPrank();
     }
     
     // Test failure case for claiming cheque with invalid signature
-    function testFailClaimChequeWithInvalidSignature() public {
+    function test_Revert_When_ClaimChequeWithInvalidSignature() public {
         // 1. Register a cheque
         bytes32[] memory pubKeyHashes = new bytes32[](1);
         pubKeyHashes[0] = keccak256(abi.encodePacked(userA));
@@ -328,11 +312,7 @@ contract SecureChequeTest is Test {
         
         uint256 claimAmount = 0.5 ether;
         // Create an invalid signature (signed by wrong key)
-        bytes32 claimHash = keccak256(abi.encodePacked(userB, claimAmount));
-        bytes32 ethSignedMessageHash = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", claimHash));
-        
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(userBPrivKey, ethSignedMessageHash);
-        bytes memory invalidSig = abi.encodePacked(r, s, v);
+        bytes memory invalidSig = hex"824b259a8e4880cc031f4a1a364f2d80506a20983a1ce01355abb8daef0cc3871694cdf830e2b0b7214654d3fb28890a44b7aeaf2718a5639c6f4143253f7e2500";
         
         // Register intent
         bytes32 initialSigHash = keccak256(invalidSig);
@@ -343,6 +323,7 @@ contract SecureChequeTest is Test {
         
         // Try to claim with invalid signature (should fail)
         SecureCheque.TransferStep[] memory emptySteps = new SecureCheque.TransferStep[](0);
+        vm.expectRevert("Amount exceeds cheque max");
         secureCheque.claimCheque(emptySteps, claimAmount, invalidSig);
         
         vm.stopPrank();

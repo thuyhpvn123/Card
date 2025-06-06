@@ -62,3 +62,13 @@
 14:42:44.920164 db@janitor F·5 G·1
 14:42:44.920174 db@janitor removing table-11
 14:42:44.920205 db@open done T·58.542415ms
+=============== Jun 3, 2025 (EDT) ===============
+11:34:08.709781 log@legend F·NumFile S·FileSize N·Entry C·BadEntry B·BadBlock Ke·KeyError D·DroppedEntry L·Level Q·SeqNum T·TimeElapsed
+11:34:08.711741 version@stat F·[1 1] S·2KiB[235B 2KiB] Sc·[0.25 0.00]
+11:34:08.711756 db@open opening
+11:34:08.711772 journal@recovery F·1
+11:34:08.712005 journal@recovery recovering @16
+11:34:08.719326 memdb@flush created L0@18 N·66 S·6KiB "las..ock,v229":"tok..a26,v166"
+11:34:08.720123 version@stat F·[2 1] S·8KiB[6KiB 2KiB] Sc·[0.50 0.00]
+11:34:08.739814 db@janitor F·5 G·0
+11:34:08.739832 db@open done T·28.067253ms
