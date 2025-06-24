@@ -252,11 +252,19 @@ contract NotiFactory is Ownable {
         bytes publicKey, 
         bytes encryptedDeviceToken,
         PlatformEnum platform,
-        uint256 createdAt
+        uint256 createdAt,
+        bytes32 hashDeviceToken
     );
     event UserUnsubscribed(
         address indexed user, 
         address indexed dapp, 
+        PlatformEnum platform,
+        uint256 createdAt
+    );
+    event UserUnsubscribedADevice(
+        address indexed user, 
+        address indexed dapp, 
+        bytes encryptedDeviceToken,
         PlatformEnum platform,
         uint256 createdAt
     );
@@ -267,6 +275,7 @@ contract NotiFactory is Ownable {
     mapping(address => DappContracts) public dappToContracts;
     mapping(address => mapping(uint => uint256[])) private mUserToScheduledTimes; //user =>platform => scheduled times
     mapping(address => mapping(uint => address[])) private mUserToScheduledApps; //user =>platform => apps scheduled in platform
+    mapping(address => bytes32[]) public mUserToHashDeviceTokens; //user => array of hashes of encrypted device tokens
     address[] public dappList;
     DappInfo[] public dappInfoList;
     NotiHub public notiHub; // Tham chiếu đến NotiHub
@@ -330,14 +339,23 @@ contract NotiFactory is Ownable {
         address dappOwner, 
         bytes calldata publicKey, 
         bytes calldata encryptedDeviceToken,
-        PlatformEnum platform
+        PlatformEnum platform,
+        bytes32 hashDeviceToken
     ) external {
         require(dappToContracts[dappOwner].permissionManager != address(0), "Dapp not registered");
 
         PermissionManager permissionManager = PermissionManager(dappToContracts[dappOwner].permissionManager);
         permissionManager.registerUser(msg.sender);
-
-        emit UserSubscribed(msg.sender, dappOwner, address(permissionManager), publicKey, encryptedDeviceToken,platform,block.timestamp);
+        mUserToHashDeviceTokens[msg.sender].push(hashDeviceToken);
+        emit UserSubscribed(msg.sender, dappOwner, address(permissionManager), publicKey, encryptedDeviceToken,platform,block.timestamp,hashDeviceToken);
+    }
+    function checkDeviceTOkenExist(bytes32 hashDeviceToken) external view returns(bool existed){
+        bytes32[] memory hashDeviceTokens =  mUserToHashDeviceTokens[msg.sender];
+        for(uint256 i; i< hashDeviceTokens.length; i++){
+            if(hashDeviceTokens[i] == hashDeviceToken){
+                return true;    
+            }
+        }
     }
     function unSubscribeUser(
         address dappOwner, 
@@ -347,9 +365,23 @@ contract NotiFactory is Ownable {
 
         PermissionManager permissionManager = PermissionManager(dappToContracts[dappOwner].permissionManager);
         permissionManager.unregisterUser(msg.sender);
-
         emit UserUnsubscribed(msg.sender, dappOwner, platform,block.timestamp);
     }
+    function unSubscribeADevice(
+        address dappOwner, 
+        bytes calldata encryptedDeviceToken,
+        PlatformEnum platform
+    ) external {
+        bytes32[] storage hashEncryptedDeviceTokens =  mUserToHashDeviceTokens[msg.sender];
+        for(uint256 i; i< hashEncryptedDeviceTokens.length; i++){
+            if(hashEncryptedDeviceTokens[i] == keccak256(encryptedDeviceToken)){
+                hashEncryptedDeviceTokens[i] = hashEncryptedDeviceTokens[hashEncryptedDeviceTokens.length -1];
+                hashEncryptedDeviceTokens.pop();    
+                break;    
+            }
+        }
+        emit UserUnsubscribedADevice(msg.sender, dappOwner,encryptedDeviceToken , platform,block.timestamp); 
+   }
 
     /**
      * @notice Lấy địa chỉ của PermissionManager & NotiStorage của một Dapp

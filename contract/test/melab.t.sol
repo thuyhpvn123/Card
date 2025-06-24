@@ -85,14 +85,15 @@ contract MelabTest is Test {
             referrer,
             testReferralReward,
             true,
-            testPlanPrice
+            testPlanPrice,
+            11111111111111
         );
         
         vm.prank(user2);        
         meLab.voteCodeProposal(proposalId,true);
         // Kiểm tra code đã được phê duyệt
         bytes memory newCode = generateCode(testPublicKey);
-        (,,,CodeStatus status,,,,,, ) = codeContract.miningCodes(newCode);
+        (,,,CodeStatus status,,,,,, ,) = codeContract.miningCodes(newCode);
         assertEq(uint(status), uint(CodeStatus.Approved), "Status should be Approved");
         bytes[] memory codesArr = codeContract.getCodesByOwner(assignedUser);
         assertEq(1,codesArr.length,"code array should have 1 code");

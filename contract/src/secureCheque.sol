@@ -94,23 +94,23 @@ contract SecureCheque {
 
     /**
      * @notice Đăng ký batch séc mới
-     * @param pubKeyHashes Mảng các hash của public key
+     * @param receiverHashes Mảng các hash của public key // là mảng hash của địa chỉ ví những người nhận chứ ko phải publickey
      * @param amount Giá trị của mỗi séc
      */
-    function registerCheques(bytes32[] calldata pubKeyHashes, uint256 amount) external payable {
-        uint256 total = amount * pubKeyHashes.length;
+    function registerCheques(bytes32[] calldata receiverHashes, uint256 amount) external payable {
+        uint256 total = amount * receiverHashes.length;
         require(amount > 0, "Incorrect amount");
         // require(total < 100, "Incorrect total");
         require(total < 100 *10**18, "Incorrect total");
         require(msg.value == total, "Incorrect total amount");
 
-        for (uint256 i = 0; i < pubKeyHashes.length; i++) {
-            bytes32 hash = pubKeyHashes[i];
-            require(cheques[hash].creator == address(0), "Already exists");
+        for (uint256 i = 0; i < receiverHashes.length; i++) {
+            bytes32 hash = receiverHashes[i];
+            // require(cheques[hash].creator == address(0), "Already exists");
             cheques[hash] = Cheque(msg.sender, hash, amount, 0, ChequeStatus.Unused, "");
         }
 
-        emit ChequesBatchRegistered(pubKeyHashes, amount);
+        emit ChequesBatchRegistered(receiverHashes, amount);
     }
 
      /**
@@ -140,7 +140,7 @@ contract SecureCheque {
         intents[msg.sender] = WithdrawalIntent(initialSigHash, block.timestamp);
         emit IntentRegistered(initialSigHash, msg.sender);
     }
-
+    
     function clearClaimIntent() external {
         delete intents[msg.sender];
     }

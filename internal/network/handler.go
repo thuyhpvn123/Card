@@ -274,7 +274,8 @@ func (h *CardHandler) handleRequestUpdateTxStatus(data string) {
 	if status == 1 {
 		statusQuery := utils.UpdateStatus(txID)
 		atTime := time.Now().Unix()
-		if statusQuery == "success" {
+		
+		if statusQuery == "success" || strings.Contains(statusQuery,"success"){
 			_,err := h.service.UpdateTxStatus(tokenId, txID, 2, uint64(atTime), "success")
 			if err != nil {
 				logger.Error("Error when UpdateTxStatus:",err)
@@ -515,7 +516,7 @@ func (h *CardHandler) monitorTransaction(tokenId [32]byte, ctx context.Context, 
 		case <-time.After(1 * time.Second):
 			status := utils.UpdateStatus(txID)
 			atTime := time.Now().Unix()
-			if status == "success" {
+			if status == "success" || strings.Contains(status,"success"){
 				// kq, err := h.service.UpdateTxStatus(tokenId, txID, 2, uint64(atTime), "success")
 				// result, ok := kq.(bool)
 				// if err == nil && ok && result {

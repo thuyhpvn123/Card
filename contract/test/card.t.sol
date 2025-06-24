@@ -594,57 +594,57 @@ contract CardTokenManagerTest is Test {
     
     // ===== CLEANUP TESTS =====
     
-    // function testCleanUsage() public {
-    //     uint currentTime = 1744281626;
-    //     vm.warp(currentTime);
-    //     // Setup token and make some charges
-    //     vm.prank(user1);
-    //     cardTokenManager.requestToken(ENCRYPTED_CARD_DATA, TEST_REQUEST_ID);
+    function testCleanUsage() public {
+        uint currentTime = 1744281626;
+        vm.warp(currentTime);
+        // Setup token and make some charges
+        vm.prank(user1);
+        cardTokenManager.requestToken(ENCRYPTED_CARD_DATA, TEST_REQUEST_ID);
         
-    //     vm.prank(beProcessor);
-    //     cardTokenManager.submitToken(
-    //         user1,
-    //         TEST_TOKEN_ID,
-    //         "US",
-    //         TEST_REQUEST_ID,
-    //         TEST_CARD_HASH
-    //     );
+        vm.prank(beProcessor);
+        cardTokenManager.submitToken(
+            user1,
+            TEST_TOKEN_ID,
+            "US",
+            TEST_REQUEST_ID,
+            TEST_CARD_HASH
+        );
         
-    //     // Make a few charges
-    //     vm.startPrank(user1);
-    //     cardTokenManager.charge(TEST_TOKEN_ID, merchant1, 100);
-    //     vm.warp(currentTime + 61); // Move forward 1 minute
-    //     cardTokenManager.charge(TEST_TOKEN_ID, merchant1, 100);
-    //     vm.warp(currentTime + 61 + 61); // Move forward 1 minute
-    //     cardTokenManager.charge(TEST_TOKEN_ID, merchant1, 100);
-    //     vm.stopPrank();
-    //     console.log("currentMinute:",block.timestamp);
-    //     // Get current minute
-    //     uint256 currentMinute = block.timestamp / 60;
-    //     console.log("currentMinute:",currentMinute);
-    //     uint256 pastMinute1 = (block.timestamp - 61) / 60;
-    //     console.log("pastMinute1:",pastMinute1);
-    //     uint256 pastMinute2 = (block.timestamp - 122) / 60;
-    //     console.log("pastMinute2:",pastMinute2);
-    //     // Verify counts before cleanup
-    //     assertEq(cardTokenManager.tokenUsagePerMinute(TEST_TOKEN_ID, currentMinute), 1);
-    //     assertEq(cardTokenManager.tokenUsagePerMinute(TEST_TOKEN_ID, pastMinute1), 1);
-    //     assertEq(cardTokenManager.tokenUsagePerMinute(TEST_TOKEN_ID, pastMinute2), 1);
+        // Make a few charges
+        vm.startPrank(user1);
+        cardTokenManager.charge(TEST_TOKEN_ID, user1, 100);
+        vm.warp(currentTime + 61); // Move forward 1 minute
+        cardTokenManager.charge(TEST_TOKEN_ID, user1, 100);
+        vm.warp(currentTime + 61 + 61); // Move forward 1 minute
+        cardTokenManager.charge(TEST_TOKEN_ID, user1, 100);
+        vm.stopPrank();
+        console.log("currentMinute:",block.timestamp);
+        // Get current minute
+        uint256 currentMinute = block.timestamp / 60;
+        console.log("currentMinute:",currentMinute);
+        uint256 pastMinute1 = (block.timestamp - 61) / 60;
+        console.log("pastMinute1:",pastMinute1);
+        uint256 pastMinute2 = (block.timestamp - 122) / 60;
+        console.log("pastMinute2:",pastMinute2);
+        // Verify counts before cleanup
+        assertEq(cardTokenManager.tokenUsagePerMinute(TEST_TOKEN_ID, currentMinute), 1);
+        assertEq(cardTokenManager.tokenUsagePerMinute(TEST_TOKEN_ID, pastMinute1), 1);
+        assertEq(cardTokenManager.tokenUsagePerMinute(TEST_TOKEN_ID, pastMinute2), 1);
         
-    //     // Lock contract for cleanup
-    //     vm.prank(admin);
-    //     cardTokenManager.setLock(true);
+        // Lock contract for cleanup
+        vm.prank(admin);
+        cardTokenManager.setLock(true);
         
-    //     // Perform cleanup
-    //     vm.prank(admin);
-    //      console.log("pastMinute2:",pastMinute2);
-    //     cardTokenManager.cleanUsage(block.timestamp - 90); // Clean before the last 90 seconds
+        // Perform cleanup
+        vm.prank(admin);
+         console.log("pastMinute2:",pastMinute2);
+        cardTokenManager.cleanUsage(block.timestamp - 90); // Clean before the last 90 seconds
         
-    //     // Verify counts after cleanup - oldest charge should be cleaned
-    //     assertEq(cardTokenManager.tokenUsagePerMinute(TEST_TOKEN_ID, currentMinute), 1);
-    //     assertEq(cardTokenManager.tokenUsagePerMinute(TEST_TOKEN_ID, pastMinute1), 1);
-    //     assertEq(cardTokenManager.tokenUsagePerMinute(TEST_TOKEN_ID, pastMinute2), 0); // Should be cleaned
-    // }
+        // Verify counts after cleanup - oldest charge should be cleaned
+        assertEq(cardTokenManager.tokenUsagePerMinute(TEST_TOKEN_ID, currentMinute), 1);
+        assertEq(cardTokenManager.tokenUsagePerMinute(TEST_TOKEN_ID, pastMinute1), 1);
+        assertEq(cardTokenManager.tokenUsagePerMinute(TEST_TOKEN_ID, pastMinute2), 0); // Should be cleaned
+    }
     
     // function testFailCleanUsageWithoutLock() public {
     //     // Setup token

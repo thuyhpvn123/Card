@@ -25,7 +25,7 @@ contract PublicKeyFromPrivateKeyMock  {
 contract MockCode {
     function activateCode(uint256 indexCode, address user) external returns (uint256 boostRate, uint256 maxDuration, uint256 expireTime) {
         // Mock implementation that returns predefined values
-        return (100*indexCode, 30 days+indexCode, block.timestamp + 365 days+indexCode);
+        return (100000*indexCode, 30 days+indexCode, block.timestamp + 365 days+indexCode);
     }
 }
 contract MiningContractsTest is Test {
@@ -209,11 +209,11 @@ contract MiningContractsTest is Test {
         //claim
         vm.warp(currentTime + 24 hours +16 seconds);// sau khi activateCode hon 24h moi goi claim duoc khong se loi not match time
         vm.prank(owner);
-        uint256 halvingReward = 1000;
-        miningCode.claim(halvingReward);
+        // uint256 halvingReward = 1000;
+        miningCode.claim();
 
         // // Check balances for code1
-        uint256 expectedCode1Reward = 100 * halvingReward; // 100,000 = maxWithdrawable
+        uint256 expectedCode1Reward = 6250; // 100,000 = maxWithdrawable
         (,address deviceA,,,,,,,,,,) = miningCode.miningPrivateCodes(hashedPrivateCode);
         assertEq(miningDevice.balanceOf(deviceA), expectedCode1Reward);
         // assertEq(mockMiningDevice.getBalance(ref1), expectedCode1Reward * 20 / 100); // 20,000
@@ -237,9 +237,9 @@ contract MiningContractsTest is Test {
         //2.user1 approve and deposit to withdraw mtd
         vm.startPrank(user1);
         usdtToken.approve(address(miningUser),10_000);
-        uint256 usdtAmount = 10_000;
-        uint256 resourceAmount = 10_000;
-        miningUser.depositToWithdraw(deviceA,usdtAmount,resourceAmount);
+        // uint256 usdtAmount = 10_000;
+        uint256 resourceAmount = 1;
+        miningUser.depositToWithdraw(deviceA,resourceAmount);
         vm.stopPrank();
     }
     
@@ -608,9 +608,28 @@ contract MiningContractsTest is Test {
         // address userA = 0x68B45379FEa4d354685e1C473962475a8119a2ba;
         // string memory token = "fhgwzThJRciYxtivwue_p4:APA91bGbyanMsZ_99BvQ7mYoGH8hNEL6gsCEfVBeFtzmS8ioVQ2B2QajmuXcq1z-m4f-HyBQ5x0IaDZJ6iOm-hWgF_lDJ4wbaoaCRLC0Gx2k43BQdmiVXgY";
         // bytes memory signature = hex"6ea3ce4092a57f8bfac7df2ad5f9371118324b0900309b70223c465cfc99073d1d9a23f0fe3cde6ea140aeaaa750f1a1c01933c4e3a684ed2adea3cabdd28fae00";
-        address userA = 0x68B45379FEa4d354685e1C473962475a8119a2ba;
-        string memory token = "fhgwzThJRciYxtivwue_p4:APA91bGbyanMsZ_99BvQ7mYoGH8hNEL6gsCEfVBeFtzmS8ioVQ2B2QajmuXcq1z-m4f-HyBQ5x0IaDZJ6iOm-hWgF_lDJ4wbaoaCRLC0Gx2k43BQdmiVXgY";
-        bytes memory signature = hex"6ea3ce4092a57f8bfac7df2ad5f9371118324b0900309b70223c465cfc99073d1d9a23f0fe3cde6ea140aeaaa750f1a1c01933c4e3a684ed2adea3cabdd28fae00";
+        // address userA = 0xC8643eF8f4232bf7E8bAc6Ac73a2fe9A28Cb575A;
+        // string memory token = "etnTZCegRi6HHG9_vZRAlt:APA91bHBOVjplwQyVKUMxJAwBfwPbtIxJwtdSPHWKA6DQcU6DFTbk_71zAj3S3QWCKvAweK--0rqOnZuSFDALDyzRRuO22VFEFl_6v5_GvbqbvL1CtyoRz8";
+        // bytes memory signature = hex"10603f653b11564e792a926b4c591daec5ce501ed3b2e7890309a1eda5582afb279317b3cb63b3f4fd773378ee05986e94adc08d0ea34b456bcdbdf33c46e27500";
+        // address userA = 0xD5e5De64b7CDea2eca2ca27A2cC8cDf8821D5D99;
+        // string memory token = "edxD12lnQsiibrus79bwit:APA91bFyao0Nuo9dT4rBV4W4c9F2drtqV6hS7FbKRSGDHE1SZ1X7kwzL__LFOMvotEMKt1h6KPQvgwAU27PXY8VENqU6-qoSPOiaPVzNmJ7EyAQgyVEf044";
+        // bytes memory signature = hex"4981792e21b1ecb49ced46ca5eeb4535f2d716c983c604993393488a63c130d8246277cca5e352ccf102b22b1bca7d9b2f740ba572b0595d04a52b69bf4011e701";
+        // address userA = 0xDF7876Dc76C913b265676F8D5504167CFd8c1Ca1;
+        // string memory token = "dzgX0U3NQ9qJuUtjnf9ePH:APA91bFv1R7cGfU9aRzWjSfXahHuUR0eP_m4idB78vsKE1vRlSsAAoieOfIHbrcuyhVOrcJY-2CuSMwhJ59W_98qr-7lXrJuTfac40ZoYUpTawI3f_VnRVg";
+        // bytes memory signature = hex"5e619647345a963d7e9546e95a5eab6082e797e2326a2fe12d33f89ad1b607732261e0a18c6f38d309dc4f8aea9f312bfcebc48b2168b58531e26c34c74eea5d01";
+        // address userA = 0xf341E1B65bdFCa2bA2379560337A7927F3EB6F11;
+        // string memory token = "etnTZCegRi6HHG9_vZRAlt:APA91bHBOVjplwQyVKUMxJAwBfwPbtIxJwtdSPHWKA6DQcU6DFTbk_71zAj3S3QWCKvAweK--0rqOnZuSFDALDyzRRuO22VFEFl_6v5_GvbqbvL1CtyoRz8";
+        // bytes memory signature = hex"cdcb5c24778aa90908296b71e1c87e5d166d6d5bea31bf5b262d9b6c84802a102ea4342f7e76395b45917e53de007fbfbbc56aff078046e8db1d8ed1012afd2400";
+        // address userA = 0x3d0285A43b52f0fEFA568428DD83DfE79Ec0A6E8;
+        // string memory token = "frt_CeU-TI6AC9Y3ArJOj-:APA91bFYx2N6IsKZaK8duUMFq3WwGslzqzd39gCmjgnNlVqpF6TjD0pIcI8x-OyC3FyU66hxwPNxgn8uHMXxAPnfe6Fw2Zrp8p0IfKOVer9XLwA0uecfhUQ";
+        // bytes memory signature = hex"8c99b1e9c61da3f31c365d3a6a45ac3174d02b035699676a23686a0ebb8da22d22a5b28abf9619bf4417293e5c648810b64dae9affbae13fe5f0dfb56bace03d01";
+        // address userA = 0x9a6e3fbA88B089dEB99815e0Ce4bA0Daf8Ac86EF;
+        // string memory token = "eKhbXzjfRIanbetCBT209F:APA91bG8vfrc2lUnTaD-VkXCL21IbD6iDUku0jf9CFu19jJgA6iIzc5ekm186vWvWDcrxpb4EbbIr8mPIGJtnW0_INJ9qUYR_NOOSKsF8Ml0FuprjSgWRhI";
+        // bytes memory signature = hex"98e89390f72fe4290e0ea11c0b43d3e86861c712122e61b301f1bf1103d49c162c3551db8537e38e7efa72bc000aa9684a219601714dc13e11ad79d94407f2c201";
+        address userA = 0xC8643eF8f4232bf7E8bAc6Ac73a2fe9A28Cb575A;
+        string memory token = "eKhbXzjfRIanbetCBT209F:APA91bG8vfrc2lUnTaD-VkXCL21IbD6iDUku0jf9CFu19jJgA6iIzc5ekm186vWvWDcrxpb4EbbIr8mPIGJtnW0_INJ9qUYR_NOOSKsF8Ml0FuprjSgWRhI";
+        bytes memory signature = hex"fdc60581c55541617e1f49f2511f1f4c32b0a3fbd60f1b725da7dd71cc8e331c4282d8571653f2193c8702b3e7816ed5c53aa12ef428c32f167b6443671e99d701";
+
 
         // Refer user2 by user1
         vm.prank(user2);
@@ -651,6 +670,8 @@ contract MiningContractsTest is Test {
         //genCode
         bytes32 privateCode1 = 0x61cffafd93c74678852bbc7bf67ef35074ce175069d34a3fc142c96506e0a8c6; //day la private key cua vi df182ed5cf7d29f072c429edd8bfcf9c4151394b
         bytes32 hashedPrivateCode1 = keccak256(abi.encodePacked(privateCode1));
+        console.log("hashedPrivateCode1:");
+        console.logBytes32(hashedPrivateCode1);
         bytes memory publicKey1 = hex'0443ecc93c2949c17cbc9d525e910f91ffc13835786d6da1ddd49347bad123f6fe2fb89c7dcbba6ba85fb976956229fc4daa6ef3676a5df3a89cb5bbb3fe68b327';
         bytes32 hashedPublicKey1 = keccak256(abi.encodePacked(publicKey1));
         
@@ -664,10 +685,10 @@ contract MiningContractsTest is Test {
             "-----------------------------------------------------------------------------"
         );
         //userLinkToDevice: user la nguoi goi ham, device ki signatureA
-        uint256 timestamp = 1748659955;
+        uint256 timestamp = 1750136030;
         //user = 0xdf182ed5cf7d29f072c429edd8bfcf9c4151394b
-        address deviceA = 0x043E61E490EC76Aa636758D72A15201923593C72;
-        bytes memory signatureA = hex"94e8be29c51a26660a0eeb6c8fa46e24a57cd2b075e0db07c6270ed848e49df27e5ec439b392dea3e4c29afca661a501d12d6d880acefc35f2615b7d5626f69601";
+        address deviceA = 0x888Fc4277540e94A70d753bfb964d29AedbD9a89;
+        bytes memory signatureA = hex"7049f18074483dc7f33a1c083ebc5245cd98cea574659f2f135ae6d89b7baf87736e303ab6e614bcddea04c3174d07312823f878b66f436ac444741fb9e9eaf500";
         bytesCodeCall = abi.encodeCall(
             miningDevice.userLinkToDevice,
             (deviceA, signatureA, timestamp)
@@ -690,6 +711,17 @@ contract MiningContractsTest is Test {
         console.log(
             "-----------------------------------------------------------------------------"
         );
+        //balanceOfAllDeviceAUser
+        bytesCodeCall = abi.encodeCall(
+            miningDevice.balanceOfAllDeviceAUser,
+            (0xd132126049A2B52512d752B3559c2A13Fa59E312)
+        );
+        console.log("miningDevice balanceOfAllDeviceAUser: ");
+        console.logBytes(bytesCodeCall);
+        console.log(
+            "-----------------------------------------------------------------------------"
+        );
+
 
     }
 

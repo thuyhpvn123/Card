@@ -268,48 +268,6 @@ contract CardTokenManager is Ownable {
         require(tokens[tokenId].totalUsage < smRule.maxTotal, "SM: token max total");
 
 
-        // // Check region
-        // if (!_regionAllowed(tokenCard.region, rule.allowedRegions)) {
-        //     emit ChargeRejected(msg.sender, tokenId, "Region not allowed");
-        //     return (false,"Region not allowed");
-        // }
-
-        // Check token-level usage limits
-        // if (tokenUsagePerMinute[tokenId][minute] >= rule.maxPerMinute) {
-        //     emit ChargeRejected(msg.sender, tokenId, "Max per minute exceeded");
-        //     return (false,"Max per minute exceeded");
-        // }
-        // if (tokenUsagePerHour[tokenId][hour] >= rule.maxPerHour) {
-        //     emit ChargeRejected(msg.sender, tokenId, "Max per hour exceeded");
-        //     return (false,"Max per hour exceeded");
-        // }
-        // if (tokenUsagePerDay[tokenId][day] >= rule.maxPerDay) {
-        //     emit ChargeRejected(msg.sender, tokenId, "Max per day exceeded");
-        //     return (false,"Max per day exceeded");
-        // }
-        // if (tokenUsagePerWeek[tokenId][week] >= rule.maxPerWeek) {
-        //     emit ChargeRejected(msg.sender, tokenId, "Max per week exceeded");
-        //     return (false,"Max per week exceeded");
-        // }
-
-        // Check card-level usage limits
-        // if (cardUsagePerMinute[cardHash][minute] >= rule.maxPerMinute) {
-        //     emit ChargeRejected(msg.sender, tokenId, "Card max per minute exceeded");
-        //     return (false,"Card max per minute exceeded");
-        // }
-        // if (cardUsagePerHour[cardHash][hour] >= rule.maxPerHour) {
-        //     emit ChargeRejected(msg.sender, tokenId, "Card max per hour exceeded");
-        //     return (false,"Card max per hour exceeded");
-        // }
-        // if (cardUsagePerDay[cardHash][day] >= rule.maxPerDay) {
-        //     emit ChargeRejected(msg.sender, tokenId, "Card max per day exceeded");
-        //     return (false,"Card max per day exceeded");
-        // }
-        // if (cardUsagePerWeek[cardHash][week] >= rule.maxPerWeek) {
-        //     emit ChargeRejected(msg.sender, tokenId, "Card max per week exceeded");
-        //     return (false,"Card max per week exceeded");
-        // }
-
         // Record usage
         if (tokenUsagePerMinute[tokenId][minute] == 0) {
             tokenUsageTimestamps[tokenId].push(minute);
@@ -583,6 +541,7 @@ contract CardTokenManager is Ownable {
             uint256 ts = timestamps[i];
             if (ts < before) {
                 delete usageMap[ts];
+                // delete usageMap[ts / 60];
                 // Remove timestamp from array efficiently
                 timestamps[i] = timestamps[length - 1];
                 timestamps.pop();

@@ -15,7 +15,8 @@ interface ICode {
         address assignedTo,
         address referrer,
         uint256 referralReward,
-        bool transferable
+        bool transferable,
+        uint256 expireTime
     ) external returns(bytes memory);
     
     function requestCode(
@@ -25,7 +26,8 @@ interface ICode {
         address assignedTo,
         address referrer,
         uint256 referralReward,
-        bool transferable
+        bool transferable,
+        uint256 expireTime
     ) external returns(bytes memory);
     
     function voteCode(bytes memory code, bool approve) external;
@@ -62,6 +64,7 @@ struct CodeProposal {
     address referrer;
     uint256 referralReward;
     bool transferable;
+    uint256 expireTime;
 }
 
 contract MeLab is Ownable {
@@ -172,7 +175,8 @@ contract MeLab is Ownable {
         address _referrer,
         uint256 _referralReward,
         bool _transferable,
-        uint256 _planPrice
+        uint256 _planPrice,
+        uint256 _expireTime
     ) external onlyRoleMember returns (uint256) {
         require(_planPrice / usdtDecimal > 0, "MetaLab: Invalid Code Value");
         require(_maxDuration > 0, "MetaLab: Invalid Max Duration");
@@ -191,7 +195,8 @@ contract MeLab is Ownable {
             assignedTo: _assignedTo,
             referrer: _referrer,
             referralReward: _referralReward,
-            transferable: _transferable
+            transferable: _transferable,
+            expireTime:_expireTime
         });
         
         codeProposalList.push(newProposal);
@@ -202,28 +207,6 @@ contract MeLab is Ownable {
         return newProposal.proposalId;
     }
 
-    // // Updated executeCreateCode function to interact with Code contract
-    // function executeCreateCode(uint256 _proposalId) internal {
-    //     CodeProposal storage proposal = codeProposalList[_proposalId - 1];
-        
-    //     // Request code creation from Code contract
-    //     bytes memory codeHash = codeContract.requestCode(
-    //         proposal.publicKey,
-    //         proposal.boostRate,
-    //         proposal.maxDuration,
-    //         proposal.assignedTo,
-    //         proposal.referrer,
-    //         proposal.referralReward,
-    //         proposal.transferable
-    //     );
-        
-    //     // Update proposal with generated code hash
-    //     proposal.codeHash = codeHash;
-    //     totalCreatedCode++;
-        
-    //     emit CodeApproved(codeHash, proposal.assignedTo);
-    // }
-    // Updated executeCreateCode function to create code directly
     function executeCreateCode(uint256 _proposalId) internal {
         CodeProposal storage proposal = codeProposalList[_proposalId - 1];
         
@@ -235,7 +218,8 @@ contract MeLab is Ownable {
             proposal.assignedTo,
             proposal.referrer,
             proposal.referralReward,
-            proposal.transferable
+            proposal.transferable,
+            proposal.expireTime
         );
         
         // Update proposal with generated code hash
@@ -522,4 +506,154 @@ contract MeLab is Ownable {
             delete voteWeight[proposal.nominee];
         }
     }
+    function getUserProposalList(
+        uint256 _page
+    ) external view returns (bool isMore, UserProposal[] memory proposalList_) {
+        if (_page * returnRIP > userProposalList.length + returnRIP) {
+            return (false, proposalList_);
+        } else {
+            if (_page * returnRIP < userProposalList.length) {
+                isMore = true;
+                proposalList_ = new UserProposal[](returnRIP);
+                for (uint i = 0; i < proposalList_.length; i++) {
+                    proposalList_[i] = userProposalList[
+                        _page * returnRIP - returnRIP + i
+                    ];
+                }
+                return (isMore, proposalList_);
+            } else {
+                isMore = false;
+                proposalList_ = new UserProposal[](
+                    returnRIP - (_page * returnRIP - userProposalList.length)
+                );
+                for (uint i = 0; i < proposalList_.length; i++) {
+                    proposalList_[i] = userProposalList[
+                        _page * returnRIP - returnRIP + i
+                    ];
+                }
+                return (isMore, proposalList_);
+            }
+        }
+    }
+
+    function getCodeProposalList(
+        uint256 _page
+    ) external view returns (bool isMore, CodeProposal[] memory proposalList_) {
+        if (_page * returnRIP > codeProposalList.length + returnRIP) {
+            return (false, proposalList_);
+        } else {
+            if (_page * returnRIP < codeProposalList.length) {
+                isMore = true;
+                proposalList_ = new CodeProposal[](returnRIP);
+                for (uint i = 0; i < proposalList_.length; i++) {
+                    proposalList_[i] = codeProposalList[
+                        _page * returnRIP - returnRIP + i
+                    ];
+                }
+                return (isMore, proposalList_);
+            } else {
+                isMore = false;
+                proposalList_ = new CodeProposal[](
+                    returnRIP - (_page * returnRIP - codeProposalList.length)
+                );
+                for (uint i = 0; i < proposalList_.length; i++) {
+                    proposalList_[i] = codeProposalList[
+                        _page * returnRIP - returnRIP + i
+                    ];
+                }
+                return (isMore, proposalList_);
+            }
+        }
+    }
+
+    function getUserProposalListByTime(
+        uint256 startTime,
+        uint256 endTime,
+        uint256 _page
+    )
+    external
+    view
+    returns (
+        uint256 count,
+        bool isMore,
+        UserProposal[] memory proposalList_
+    )
+    {
+        require(startTime <= endTime, "Invalid time range");
+        UserProposal[] memory matchingProposals = new UserProposal[](
+            userProposalList.length
+        );
+        count = 0; // Counter for matching proposals
+
+        uint256 i = 0;
+        while (i < userProposalList.length) {
+            if (userProposalList[i].createdAt > endTime) {
+                break;
+            } else if (
+                userProposalList[i].createdAt >= startTime &&
+                userProposalList[i].createdAt <= endTime
+            ) {
+                matchingProposals[count] = userProposalList[i];
+                count++;
+            }
+            i++;
+        }
+        UserProposal[] memory matchingProposalsShort = new UserProposal[](
+            count
+        );
+        for (i = 0; i < count; i++) {
+            matchingProposalsShort[i] = matchingProposals[i];
+        }
+        if (_page * returnRIP > matchingProposalsShort.length + returnRIP) {
+            return (count, false, proposalList_);
+        } else {
+            if (_page * returnRIP <= matchingProposalsShort.length) {
+                isMore = true;
+                proposalList_ = new UserProposal[](returnRIP);
+                for ( i = 0; i < proposalList_.length; i++) {
+                    proposalList_[i] = matchingProposalsShort[
+                        _page * returnRIP - returnRIP + i
+                    ];
+                }
+                return (count, isMore, proposalList_);
+            } else {
+                isMore = false;
+                proposalList_ = new UserProposal[](
+                    returnRIP -
+                        (_page * returnRIP - matchingProposalsShort.length)
+                );
+                for (i = 0; i < proposalList_.length; i++) {
+                    proposalList_[i] = matchingProposalsShort[
+                        _page * returnRIP - returnRIP + i
+                    ];
+                }
+                return (count, isMore, proposalList_);
+            }
+        }
+    }
+
+    function getOwnerLength() external view returns (uint256) {
+        return ownerList.length;
+    }
+
+    function getMemberLength() external view returns (uint256) {
+        return memberList.length;
+    }
+
+    function getTotalUserProposal() external view returns (uint256) {
+        return userProposalList.length;
+    }
+
+    function getTotalCodeProposal() external view returns (uint256) {
+        return codeProposalList.length;
+    }
+
+    function isOwner() external view returns (bool) {
+        return (indexOfOwner[msg.sender] > 0);
+    }
+
+    function isMember() external view returns (bool) {
+        return (indexOfMember[msg.sender] > 0);
+    }
+
 }

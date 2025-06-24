@@ -44,8 +44,8 @@ contract Code {
         require(isDAOMember(msg.sender), "Only DAO members can call this function");
         _;
     }
-    modifier onlyMeLab() {
-        require(msg.sender == meLab, "Only MeLab can call this function");
+    modifier isAllowed() {
+        require(msg.sender == meLab || msg.sender == admin, "Only MeLab or admin can call this function");
         _;
     }
     constructor(address[] memory _daoMembers) {
@@ -82,18 +82,6 @@ contract Code {
         emit DAOUpdated(member, add);
     }
 
-    // // Update mint limit for an address
-    // function setMintLimit(address user, uint256 limit) external onlyAdmin {
-    //     mintLimits[user] = limit;
-    //     emit MintLimitUpdated(user, limit);
-    // }
-
-    // // Remove mint limit for an address
-    // function removeMintLimit(address user) external onlyAdmin {
-    //     delete mintLimits[user];
-    //     emit MintLimitUpdated(user, 0);
-    // }
-
     // Function to get the current nonce of a user
     function getNonce(address user) external view returns (uint256) {
         return userNonces[user];
@@ -102,6 +90,17 @@ contract Code {
     // Retrieve codes by owner
     function getCodesByOwner(address owner) external view returns (bytes[] memory) {
         return ownerCodes[owner];
+    }
+    function getIndexOfCode(address owner,bytes memory code) external view returns(uint256){
+        for (uint256 i=0;i < ownerCodes[owner].length; i++) {
+            if (_compareCodes(code,ownerCodes[owner][i])){
+                return i+1; //return index + 1 cho activate mining
+            }  
+        }
+        return 0; //return 0 nếu ko tìm thấy code trong mảng
+    }
+    function _compareCodes(bytes memory a, bytes memory b) internal pure returns (bool) {
+        return keccak256(a) == keccak256(b);
     }
 
     // Generate a Code (Hashed Public Key + Checksum)
@@ -131,20 +130,19 @@ contract Code {
     // Request minting a new code
     function requestCode(
         bytes memory publicKey,
-        uint256 boostRate,
+        uint256 boostRate, //boostRate >16 vì halvingReward = 0.0625-> ket qua mining lam tron =0
         uint256 maxDuration,
         address assignedTo,
         address referrer,
         uint256 referralReward,
-        bool transferable
+        bool transferable,
+        uint256 expireTime
     ) external onlyDAO() returns(bytes memory){
-        // require(mintLimits[msg.sender] > 0, "Mint limit exceeded");
 
         bytes memory code = generateCode(publicKey); // Generate hashed code
         require(isValidCode(code), "Invalid code");
         require(!codeExists(code), "Code already exists"); // Check for duplicates
-        // mintLimits[msg.sender]--;
-
+        require(block.timestamp < maxDuration && expireTime > block.timestamp, "maxDuration and expireTime must be over current time");
         miningCodes[code] = MiningCode({
             publicKey: publicKey,
             boostRate: boostRate,
@@ -155,7 +153,8 @@ contract Code {
             referralReward: referralReward,
             transferable: transferable,
             lockUntil: 0,
-            lockType: LockType.None
+            lockType: LockType.None,
+            expireTime: expireTime
         });
 
         emit CodeRequested(code, assignedTo);
@@ -212,7 +211,8 @@ contract Code {
                 referralReward: 0,
                 transferable: false,
                 lockUntil: 0,
-                lockType: LockType.None
+                lockType: LockType.None,
+                expireTime: miningCode.expireTime
             });
 
             ownerCodes[referrer].push(referrerCode);
@@ -269,21 +269,8 @@ contract Code {
         require(indexCode > 0, "Index code not found");
         require(ownerCodes[user].length >0,"no code of sender exists");
         bytes memory code = ownerCodes[user][indexCode -1];
-        // require(code.length > 0, "Code not found in user");
-
-        // bytes memory publicKey,
-        // bytes memory message,
-        // bytes memory signature
-
-        // bytes memory code = generateCode(publicKey); // Derive the code from the public key
         MiningCode storage miningCode = miningCodes[code];
-
-        // require(miningCode.assignedTo != msg.sender, "Code not found");
-        // require(_verifySignature(publicKey, message, signature), "Invalid signature");
-
-        // Decode the message and validate the command
-        // (string memory command, ) = _decodeMessage(message);
-        // require(keccak256(bytes(command)) == keccak256("activate"), "Invalid command");
+        require(miningCode.expireTime > block.timestamp,"code expired");
 
         // Additional checks
         require(miningCode.status == CodeStatus.Approved, "Code not approved");
@@ -292,9 +279,9 @@ contract Code {
         miningCode.status = CodeStatus.Actived;
         emit CodeActivated(code);
 
-        uint256 expireTime = 365 days;
+        // uint256 expireTime = 365 days;
 
-        return (miningCode.boostRate, miningCode.maxDuration, expireTime);
+        return (miningCode.boostRate, miningCode.maxDuration, miningCode.expireTime);
     }
 
     // Lock a code with signature verification
@@ -357,7 +344,8 @@ contract Code {
             referralReward: miningCode.referralReward,
             transferable: miningCode.transferable,
             lockUntil: miningCode.lockUntil,
-            lockType: miningCode.lockType
+            lockType: miningCode.lockType,
+            expireTime: miningCode.expireTime
         });
 
         delete miningCodes[oldCode];
@@ -430,6 +418,27 @@ contract Code {
         miningCode.status = CodeStatus.Expired;
         emit CodeExpired(code);
     }
+
+    function migrateCode(MiningCode [] memory codeDirectArr) external onlyAdmin {
+        for (uint256 i = 0; i < codeDirectArr.length; i++) {
+            MiningCode memory codeDirect = codeDirectArr[i];
+            // Nếu codeHash đã tồn tại thì migrate
+            if (codeDirectArr.length > 0) {
+                // Gọi createCodeDirect trong contract Code mới
+                createCodeDirect(
+                    codeDirect.publicKey,
+                    codeDirect.boostRate,
+                    codeDirect.maxDuration,
+                    codeDirect.assignedTo,
+                    address(0),
+                    0,
+                    false,
+                    codeDirect.expireTime
+                );
+            }
+        }
+    }
+
     // NEW FUNCTION: Create code directly (called by MeLab after approval)
     function createCodeDirect(
         bytes memory publicKey,
@@ -438,8 +447,9 @@ contract Code {
         address assignedTo,
         address referrer,
         uint256 referralReward,
-        bool transferable
-    ) external onlyMeLab returns(bytes memory) {
+        bool transferable,
+        uint256 expireTime
+    ) public isAllowed returns(bytes memory) {
         bytes memory code = generateCode(publicKey); // Generate hashed code
         require(isValidCode(code), "Invalid code");
         require(!codeExists(code), "Code already exists"); // Check for duplicates
@@ -454,7 +464,8 @@ contract Code {
             referralReward: referralReward,
             transferable: transferable,
             lockUntil: 0,
-            lockType: LockType.None
+            lockType: LockType.None,
+            expireTime: expireTime
         });
 
         // Add to owner's codes
@@ -482,7 +493,8 @@ contract Code {
                 referralReward: 0,
                 transferable: false,
                 lockUntil: 0,
-                lockType: LockType.None
+                lockType: LockType.None,
+                expireTime: expireTime
             });
 
             ownerCodes[referrer].push(referrerCode);

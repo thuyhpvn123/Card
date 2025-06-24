@@ -11,6 +11,12 @@ struct MiningCode {
     bool transferable;        // Whether the code is transferable
     uint256 lockUntil;        // Lock timestampưe
     LockType lockType;        // Type of lock
+    uint256 expireTime;       //max time to activate code
 }
 enum CodeStatus { Pending, Approved, Actived, Expired }
 enum LockType { None, ActiveLock, MiningLock, TransferLock }
+struct BalanceUser {
+    address device;
+    uint256 balance;
+    bool isCodeDevice; 
+}

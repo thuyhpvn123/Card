@@ -19,6 +19,7 @@ contract CodeTest is Test {
     // address user1 = address(0x555);
     address userA = 0xdf182ed5CF7D29F072C429edd8BFCf9C4151394B;
     address userDAO = generateAddress(1);
+    uint256 expireTime = 1750235327 +365 days;
     constructor() {
         for (uint i=1;i<=12;i++){
             address daoMember = generateAddress(i);
@@ -49,7 +50,8 @@ contract CodeTest is Test {
             userA, // assignedTo
             address(0x123), // can có người giới thiệu moi activate dc code
             0, // không có phần thưởng giới thiệu
-            transferable
+            transferable,
+            expireTime
         );
         vm.stopPrank();
         // Kiểm tra code đã được tạo với trạng thái pending
@@ -63,7 +65,8 @@ contract CodeTest is Test {
             uint256 referralReward,
             bool isTransferable,
             uint256 lockUntil,
-            LockType lockType
+            LockType lockType,
+            uint256 expireTime
         ) = codeContract.miningCodes(newCode);
 
         assertEq(keccak256(storedPublicKey), keccak256(publicKey), "Public key should match");
@@ -82,22 +85,22 @@ contract CodeTest is Test {
         }
 
         // Kiểm tra code đã được phê duyệt
-        (,,,status,,,,,, ) = codeContract.miningCodes(newCode);
+        (,,,status,,,,,, ,) = codeContract.miningCodes(newCode);
         assertEq(uint(status), uint(CodeStatus.Approved), "Status should be Approved");
         bytes[] memory codesArr = codeContract.getCodesByOwner(userA);
         assertEq(1,codesArr.length,"code array should have 1 code");
 
         // Kích hoạt code
         vm.prank(userA);
-        (uint256 returnedBoostRate, uint256 returnedMaxDuration, uint256 expireTime) = codeContract.activateCode(1,userA);
+        (uint256 returnedBoostRate, uint256 returnedMaxDuration, uint256 expireTime1) = codeContract.activateCode(1,userA);
         
         // Kiểm tra các giá trị trả về
         assertEq(returnedBoostRate, boostRate, "Returned boost rate should match");
         assertEq(returnedMaxDuration, maxDuration, "Returned max duration should match");
-        assertEq(expireTime, 365 days, "Expire time should be 365 days");
+        assertEq(expireTime1, 1781771327, "Expire time should be 365 days");
 
         // Kiểm tra trạng thái code sau khi kích hoạt
-        (,,,status,,,,,, ) = codeContract.miningCodes(newCode);
+        (,,,status,,,,,, ,) = codeContract.miningCodes(newCode);
         assertEq(uint(status), uint(CodeStatus.Actived), "Status should be Actived");
         transferCode(newCode,publicKey);
         GetByteCode();
@@ -121,11 +124,11 @@ contract CodeTest is Test {
         codeContract.transferCode(publicKey, message, signature);
 
         // Verify old code is deleted
-        (,,,CodeStatus oldStatus,,,,,,) = codeContract.miningCodes(oldCodeHash);
+        (,,,CodeStatus oldStatus,,,,,,,) = codeContract.miningCodes(oldCodeHash);
         assertEq(uint256(oldStatus), 0);
 
         // Verify new code exists
-        (,,,CodeStatus newStatus,,,,,,) = codeContract.miningCodes(newCodeHash);
+        (,,,CodeStatus newStatus,,,,,,,) = codeContract.miningCodes(newCodeHash);
         assertEq(uint256(newStatus), uint256(CodeStatus.Actived));
     }
     function testIsValidCode_ValidCode() public view{
@@ -175,7 +178,8 @@ contract CodeTest is Test {
             assignedTo,
             referrer,
             referralReward,
-            transferable
+            transferable,
+            expireTime
         );
 
         // Validate that the request was processed
@@ -204,7 +208,8 @@ contract CodeTest is Test {
             assignedTo,
             referrer,
             referralReward,
-            transferable
+            transferable,
+            expireTime
         );
         //
         vm.prank(daoMemberArr[0]);
@@ -227,7 +232,7 @@ contract CodeTest is Test {
         bytes memory publicKey = hex"1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
         
         vm.prank(userDAO);
-        bytes memory generatedCode = codeContract.requestCode(publicKey, 100, 3600, user1, address(0), 0, true);
+        bytes memory generatedCode = codeContract.requestCode(publicKey, 100, 3600, user1, address(0), 0, true,expireTime);
         for (uint i=0; i< 9; i++){
             vm.prank(daoMemberArr[i]);
             codeContract.voteCode(generatedCode, false);
@@ -238,7 +243,7 @@ contract CodeTest is Test {
         assertEq(vote.denyVotes, 9, "Deny votes should be 9");
         
         // Check that the code has been deleted after reaching required denial votes
-        (bytes memory publicKeyKq,uint256 boostRate,,CodeStatus status,,,,,,) = codeContract.miningCodes(generatedCode);
+        (bytes memory publicKeyKq,uint256 boostRate,,CodeStatus status,,,,,,,) = codeContract.miningCodes(generatedCode);
         assertEq(publicKeyKq.length,0, "Code should be deleted after denial");
         assertEq(uint8(status),0,"Status of code should be pending");
         assertEq(boostRate,0,"boostRate of code should be 0");
@@ -355,7 +360,7 @@ contract CodeTest is Test {
         uint256 boostRate = 100;
         uint256 maxDuration = 1748430097 + 360 days;
         bool transferable = true;
-
+        // uint256 expireTime = 1750235327 +365 days;
         bytesCodeCall = abi.encodeCall(
             codeContract.requestCode,
             (            
@@ -365,7 +370,8 @@ contract CodeTest is Test {
                 user3, // assignedTo
                 address(0x123), // can có người giới thiệu moi activate dc code
                 0, // không có phần thưởng giới thiệu
-                transferable
+                transferable,
+                expireTime
             )
         );
         console.log("Code requestCode: ");
