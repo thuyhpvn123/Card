@@ -19,4 +19,44 @@ struct BalanceUser {
     address device;
     uint256 balance;
     bool isCodeDevice; 
+    bool isLock;
+    bytes publicCode;
+}
+// struct MigrateData {
+//     address user;
+//     bytes32 privateCode;
+//     uint256 activeTime;
+//     uint256 amount;
+// }
+
+interface PublicKeyFromPrivateKey {
+    function getPublicKeyFromPrivate(bytes32 _privateCode) external returns (bytes memory);
+}
+interface IMiningDevice {
+    function addBalance(address miner, uint256 amount) external;
+    function addBalanceMigrate(address miner, uint256 amount) external;
+    function linkCodeWithUser(address _user, address _device, bytes memory publicCode) external;
+    function updateNewUserLinkDevice(address _newWallet, address _oldWallet)external ;
+}
+interface ICode {
+    function activateCode(uint256 indexCode,address user) external returns (uint256, uint256, uint256);
+    function createCodeDirect(
+        bytes memory publicKey,
+        uint256 boostRate,
+        uint256 maxDuration,
+        address assignedTo,
+        address referrer,
+        uint256 referralReward,
+        bool transferable,
+        uint256 expireTime
+    ) external returns(bytes memory);
+}
+interface IMiningUser {
+    function lockUser(address _user) external;
+    function checkJoined(address _user) external view returns (bool);
+    function getParentUser(address _user, uint8 _level) external view returns (address[] memory);
+}
+interface IMiningCode {
+    // function migrateAmount(MigrateData[] memory datas)external;
+    function migrateAmount(address user, bytes32  _privateCode, uint256 _activeTime, uint256 _amount) external; 
 }

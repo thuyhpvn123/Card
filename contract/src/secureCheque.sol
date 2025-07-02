@@ -265,7 +265,7 @@ contract SecureCheque {
     }
 
     function redeem(uint256 amount) external {
-        require(balances[msg.sender] >= amount, "Not the owner");
+        require(balances[msg.sender] >= amount,"balance is not enough");
 
         balances[msg.sender] -= amount;
 

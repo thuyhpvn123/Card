@@ -623,12 +623,12 @@ contract MiningContractsTest is Test {
         // address userA = 0x3d0285A43b52f0fEFA568428DD83DfE79Ec0A6E8;
         // string memory token = "frt_CeU-TI6AC9Y3ArJOj-:APA91bFYx2N6IsKZaK8duUMFq3WwGslzqzd39gCmjgnNlVqpF6TjD0pIcI8x-OyC3FyU66hxwPNxgn8uHMXxAPnfe6Fw2Zrp8p0IfKOVer9XLwA0uecfhUQ";
         // bytes memory signature = hex"8c99b1e9c61da3f31c365d3a6a45ac3174d02b035699676a23686a0ebb8da22d22a5b28abf9619bf4417293e5c648810b64dae9affbae13fe5f0dfb56bace03d01";
-        // address userA = 0x9a6e3fbA88B089dEB99815e0Ce4bA0Daf8Ac86EF;
-        // string memory token = "eKhbXzjfRIanbetCBT209F:APA91bG8vfrc2lUnTaD-VkXCL21IbD6iDUku0jf9CFu19jJgA6iIzc5ekm186vWvWDcrxpb4EbbIr8mPIGJtnW0_INJ9qUYR_NOOSKsF8Ml0FuprjSgWRhI";
-        // bytes memory signature = hex"98e89390f72fe4290e0ea11c0b43d3e86861c712122e61b301f1bf1103d49c162c3551db8537e38e7efa72bc000aa9684a219601714dc13e11ad79d94407f2c201";
-        address userA = 0xC8643eF8f4232bf7E8bAc6Ac73a2fe9A28Cb575A;
+        address userA = 0x9a6e3fbA88B089dEB99815e0Ce4bA0Daf8Ac86EF;
         string memory token = "eKhbXzjfRIanbetCBT209F:APA91bG8vfrc2lUnTaD-VkXCL21IbD6iDUku0jf9CFu19jJgA6iIzc5ekm186vWvWDcrxpb4EbbIr8mPIGJtnW0_INJ9qUYR_NOOSKsF8Ml0FuprjSgWRhI";
-        bytes memory signature = hex"fdc60581c55541617e1f49f2511f1f4c32b0a3fbd60f1b725da7dd71cc8e331c4282d8571653f2193c8702b3e7816ed5c53aa12ef428c32f167b6443671e99d701";
+        bytes memory signature = hex"98e89390f72fe4290e0ea11c0b43d3e86861c712122e61b301f1bf1103d49c162c3551db8537e38e7efa72bc000aa9684a219601714dc13e11ad79d94407f2c201";
+        // address userA = 0xC8643eF8f4232bf7E8bAc6Ac73a2fe9A28Cb575A;
+        // string memory token = "eKhbXzjfRIanbetCBT209F:APA91bG8vfrc2lUnTaD-VkXCL21IbD6iDUku0jf9CFu19jJgA6iIzc5ekm186vWvWDcrxpb4EbbIr8mPIGJtnW0_INJ9qUYR_NOOSKsF8Ml0FuprjSgWRhI";
+        // bytes memory signature = hex"fdc60581c55541617e1f49f2511f1f4c32b0a3fbd60f1b725da7dd71cc8e331c4282d8571653f2193c8702b3e7816ed5c53aa12ef428c32f167b6443671e99d701";
 
 
         // Refer user2 by user1

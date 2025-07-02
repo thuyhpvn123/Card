@@ -98,7 +98,7 @@ contract PermissionManager {
 contract NotiHub is Ownable{
     mapping(address => bool) public allowedNotiStorages; // Danh sách các NotiStorage hợp lệ
     address public notiFactory; // Địa chỉ NotiFactory
-
+    address public admin;
     event GlobalNotification(
         address indexed dappOwner,
         address indexed user,
@@ -117,13 +117,20 @@ contract NotiHub is Ownable{
         require(msg.sender == notiFactory, "Only NotiFactory can register");
         _;
     }
+    modifier onlyAdmin() { 
+        require(msg.sender == admin,"Only Admin");
+        _;
+    }
+
 
     // constructor(address _notiFactory) {
     //     notiFactory = _notiFactory;
     // }
-    constructor()Ownable(msg.sender){}
+    constructor(address _admin)Ownable(msg.sender){
+        admin = _admin;
+    }
 
-    function setNotiFactory(address _notiFactory)external onlyOwner{
+    function setNotiFactory(address _notiFactory)external onlyAdmin{
         notiFactory =  _notiFactory;
     }    
     /**
@@ -279,7 +286,7 @@ contract NotiFactory is Ownable {
     address[] public dappList;
     DappInfo[] public dappInfoList;
     NotiHub public notiHub; // Tham chiếu đến NotiHub
-
+    address public admin;
     event DappRegistered(address indexed dappOwner, address permissionManager, address notiStorage);
     // event UserSubscribed(address indexed user, address indexed dapp, address permissionManager);
     event NotificationScheduled(address user , address[] apps, uint256[] scheduledTimes,  uint8 platform);
@@ -290,15 +297,24 @@ contract NotiFactory is Ownable {
     // constructor(address _notiHub) {
     //     notiHub = NotiHub(_notiHub);
     // }
-    constructor() Ownable(msg.sender){}
-    function setNotiHub(address _notiHub) external onlyOwner {
+    constructor() Ownable(msg.sender){
+        admin = 0xB50b908fFd42d2eDb12b325e75330c1AaAf35dc0;
+    }
+    // constructor() Ownable(msg.sender){
+    // }
+
+    modifier onlyAdmin() { 
+        require(msg.sender == admin,"Only Admin");
+        _;
+    }
+    function setNotiHub(address _notiHub) external onlyAdmin {
         notiHub = NotiHub(_notiHub);
     }
     /**
      * @notice Đăng ký Dapp với hệ thống thông báo
      * @dev Chỉ cần gọi 1 lần duy nhất, sẽ triển khai PermissionManager & NotiStorage
      */
-    function registerDapp(address service, string memory nameDapp) external onlyOwner {
+    function registerDapp(address service, string memory nameDapp) external onlyAdmin {
         require(dappToContracts[service].permissionManager == address(0), "Dapp already registered");
 
         PermissionManager permissionManager = new PermissionManager(address(this));
@@ -316,7 +332,7 @@ contract NotiFactory is Ownable {
 
         emit DappRegistered(service, address(permissionManager), address(notiStorage));
     }
-    function unregisterDapp(address service) external onlyOwner {
+    function unregisterDapp(address service) external onlyAdmin {
         for(uint256 i; i< dappList.length; i++){
             if(dappList[i] == service){
                 dappList[i] = dappList[dappList.length -1];

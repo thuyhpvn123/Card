@@ -294,6 +294,7 @@ contract Code {
         MiningCode storage miningCode = miningCodes[code];
 
         require(miningCode.assignedTo != address(0), "Code not found");
+        // require(miningCode.assignedTo != address(0), "Code not found");
         require(_verifySignature(publicKey, message, signature), "Invalid signature");
 
         // Decode the message and validate the command
@@ -339,7 +340,8 @@ contract Code {
             boostRate: miningCode.boostRate,
             maxDuration: miningCode.maxDuration,
             status: miningCode.status,
-            assignedTo: miningCode.assignedTo,
+            // assignedTo: miningCode.assignedTo,
+            assignedTo: getAddressFromUncompressed(newPublicKey),           //thuy sua
             referrer: miningCode.referrer,
             referralReward: miningCode.referralReward,
             transferable: miningCode.transferable,
@@ -347,11 +349,65 @@ contract Code {
             lockType: miningCode.lockType,
             expireTime: miningCode.expireTime
         });
-
+        bytes[] storage codes = ownerCodes[previousOwner];
+        for (uint256 i; i< codes.length; i++){                     //thuy them
+            if (keccak256(oldCode) == keccak256(codes[i])){
+                codes[i] = codes[codes.length -1];
+                codes.pop();
+                break;
+            }
+        }
+        ownerCodes[msg.sender].push(newCode); //thuy them
         delete miningCodes[oldCode];
         emit CodeTransferred(oldCode, newCode, previousOwner, msg.sender);
     }
-
+    function getAddressFromUncompressed(bytes memory pubKeyXY) internal pure returns (address) {
+        require(pubKeyXY.length == 64, "Invalid public key length, must be 64 bytes");
+        
+        // Extract X and Y coordinates (32 bytes each)
+        uint256 x = bytesToUint256(slice(pubKeyXY, 0, 32));
+        uint256 y = bytesToUint256(slice(pubKeyXY, 32, 32));
+        
+        return getAddressFromXY(x, y);
+    }
+    /**
+     * @dev Convert X,Y coordinates to Ethereum address
+     * @param x The X coordinate
+     * @param y The Y coordinate
+     * @return The Ethereum address
+     */
+    function getAddressFromXY(uint256 x, uint256 y) internal pure returns (address) {
+        // Convert coordinates to bytes
+        bytes memory pubKey = abi.encodePacked(x, y);
+        
+        // Hash with Keccak256
+        bytes32 hash = keccak256(pubKey);
+        
+        // Take last 20 bytes as address
+        return address(uint160(uint256(hash)));
+    }
+  /**
+     * @dev Convert bytes32 to uint256
+     */
+    function bytesToUint256(bytes memory b) internal pure returns (uint256) {
+        require(b.length == 32, "Bytes length must be 32");
+        uint256 result;
+        assembly {
+            result := mload(add(b, 32))
+        }
+        return result;
+    }
+    
+    /**
+     * @dev Slice bytes array
+     */
+    function slice(bytes memory data, uint256 start, uint256 length) internal pure returns (bytes memory) {
+        bytes memory result = new bytes(length);
+        for (uint256 i = 0; i < length; i++) {
+            result[i] = data[start + i];
+        }
+        return result;
+    }
     // Verify the signature using the public key
     // function _verifySignature(
     //     bytes memory publicKey,
@@ -371,6 +427,8 @@ contract Code {
         address recoveredAddress = _recover(hash, signature);
         // Extract Ethereum address from the public key
         address expectedAddress = address(uint160(uint256(keccak256(publicKey))));
+        console.log("recoveredAddress:",recoveredAddress);
+        console.log("expectedAddress:",expectedAddress);
         return recoveredAddress == expectedAddress;
     }
 
@@ -419,25 +477,25 @@ contract Code {
         emit CodeExpired(code);
     }
 
-    function migrateCode(MiningCode [] memory codeDirectArr) external onlyAdmin {
-        for (uint256 i = 0; i < codeDirectArr.length; i++) {
-            MiningCode memory codeDirect = codeDirectArr[i];
-            // Nếu codeHash đã tồn tại thì migrate
-            if (codeDirectArr.length > 0) {
-                // Gọi createCodeDirect trong contract Code mới
-                createCodeDirect(
-                    codeDirect.publicKey,
-                    codeDirect.boostRate,
-                    codeDirect.maxDuration,
-                    codeDirect.assignedTo,
-                    address(0),
-                    0,
-                    false,
-                    codeDirect.expireTime
-                );
-            }
-        }
-    }
+    // function migrateCode(MiningCode [] memory codeDirectArr) external onlyAdmin {
+    //     for (uint256 i = 0; i < codeDirectArr.length; i++) {
+    //         MiningCode memory codeDirect = codeDirectArr[i];
+    //         // Nếu codeHash đã tồn tại thì migrate
+    //         if (codeDirectArr.length > 0) {
+    //             // Gọi createCodeDirect trong contract Code mới
+    //             createCodeDirect(
+    //                 codeDirect.publicKey,
+    //                 codeDirect.boostRate,
+    //                 codeDirect.maxDuration,
+    //                 codeDirect.assignedTo,
+    //                 address(0),
+    //                 0,
+    //                 false,
+    //                 codeDirect.expireTime
+    //             );
+    //         }
+    //     }
+    // }
 
     // NEW FUNCTION: Create code directly (called by MeLab after approval)
     function createCodeDirect(

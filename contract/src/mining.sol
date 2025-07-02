@@ -3,8 +3,8 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
-import "forge-std/console.sol";
+// import "@openzeppelin/contracts/access/Ownable.sol";
+// import "forge-std/console.sol";
 import "./interfaces/ICode.sol";
 /*
 * Luồng migrate số dư và code đào: có 2 smart contract là migrareWallet và migrateCode.
@@ -107,22 +107,7 @@ library Signature {
 
 }
 
-interface PublicKeyFromPrivateKey {
-    function getPublicKeyFromPrivate(bytes32 _privateCode) external returns (bytes memory);
-}
-interface IMiningDevice {
-    function addBalance(address miner, uint256 amount) external;
-    function addBalanceMigrate(address miner, uint256 amount) external;
-    function linkCodeWithUser(address _user, address _device) external;
-}
-interface ICode {
-    function activateCode(uint256 indexCode,address user) external returns (uint256, uint256, uint256);
-}
-interface IMiningUser {
-    function lockUser(address _user) external;
-    function checkJoined(address _user) external view returns (bool);
-    function getParentUser(address _user, uint8 _level) external view returns (address[] memory);
-}
+
 
 
 contract GetJob {
@@ -339,12 +324,7 @@ contract MiningCodeSC {
         bytes32 commitHash;
         uint256 commitTime;
     }
-    struct MigrateData {
-        address user;
-        bytes32 privateCode;
-        uint256 activeTime;
-        uint256 amount;
-    }
+
     struct DataCode {
         address owner;
         address device;
@@ -397,7 +377,7 @@ contract MiningCodeSC {
     IMiningUser public miningUser;
     uint256 private halvingReward; //0.0625 => halvingReward 4 chu so/10.000
     uint8 public halvingCount;
-
+    address public migrateDataSC;
     mapping(address => bytes32[]) public mActivePrivateCodes; //user => mang priva
     modifier onlyOwner() {
         require(msg.sender == owner, "Not owner");
@@ -413,6 +393,9 @@ contract MiningCodeSC {
         halvingReward = 625;
         halvingCount = 1;
 
+    }
+    function setMigrateDataSC(address _migrateDataSC)external onlyOwner {
+        migrateDataSC = _migrateDataSC;
     }
     function setHalvingReward(uint256 _halvingReward)external onlyOwner {
         halvingReward = _halvingReward;
@@ -524,15 +507,18 @@ contract MiningCodeSC {
         delete commits[msg.sender]; // Xóa commit để tránh reuse
         emit CodeReplaced(msg.sender, boostRate, maxDuration, expireTime);
     }
-
-    function migrateAmount(MigrateData[] memory datas)external onlyOwner(){
-        for(uint256 i; i< datas.length ;i++){
-            MigrateData memory data = datas[i];
-            _migrateAmount(data.user,data.privateCode,data.activeTime,data.amount);
-        }
+    // function checkUserExist(address _user)internal view returns(bool){
+    //     return migrateDataSC.checkUserExist(_user);
+    // }
+    // function migrateAmount(MigrateData[] memory datas)external onlyOwner(){
+    //     for(uint256 i; i< datas.length ;i++){
+    //         MigrateData memory data = datas[i];
+    //         _migrateAmount(data.user,data.privateCode,data.activeTime,data.amount);
+    //     }
         
-    }
-    function _migrateAmount(address user, bytes32  _privateCode, uint256 _activeTime, uint256 _amount) internal {
+    // }
+    function migrateAmount(address user, bytes32  _privateCode, uint256 _activeTime, uint256 _amount) public {
+        // require(checkUserExist(user),"user is not in data migrate");
         bytes32 hashedPrivateCode = keccak256(abi.encodePacked(_privateCode));
         require(miningPrivateCodes[hashedPrivateCode].owner == address(0), "Code not exists");
         require(miningPrivateCodes[hashedPrivateCode].activeTime == 0, "Code already activated");
@@ -546,7 +532,7 @@ contract MiningCodeSC {
 
         // _device để lấy 19 byte cuối (152 bits) và giữ byte đầu là 0
         address _deviceRemoveFirstBytes = address(uint160(uint256(hashedPublicKey) & 0x0000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF));
-        miningDevice.linkCodeWithUser(user, _deviceRemoveFirstBytes);
+        miningDevice.linkCodeWithUser(user, _deviceRemoveFirstBytes,publicKey);
 
         miningPrivateCodes[hashedPrivateCode].device = _deviceRemoveFirstBytes;
         miningPrivateCodes[hashedPrivateCode].privateCode = _privateCode;
@@ -593,7 +579,7 @@ contract MiningCodeSC {
 
         // _device để lấy 19 byte cuối (152 bits) và giữ byte đầu là 0
         address _deviceRemoveFirstBytes = address(uint160(uint256(hashedPublicKey) & 0x0000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF));
-        miningDevice.linkCodeWithUser(msg.sender, _deviceRemoveFirstBytes);
+        miningDevice.linkCodeWithUser(msg.sender, _deviceRemoveFirstBytes,publicKey);
 
         miningPrivateCodes[hashedPrivateCode].device = _deviceRemoveFirstBytes;
         miningPrivateCodes[hashedPrivateCode].privateCode = _privateCode;
@@ -789,7 +775,7 @@ contract MiningDevice {
         isAdmin[_admin] = _approved;
     }
     // Hàm chung xử lý link device chỉ gọi được từ miningCode
-    function linkCodeWithUser(address _user, address _device) external onlyMiningCode {
+    function linkCodeWithUser(address _user, address _device, bytes memory _publicCode) external onlyMiningCode {
         // Kiểm tra điều kiện cơ bản
         require(_user != address(0), "Invalid user address");
         require(_device != address(0), "Invalid device address");
@@ -812,13 +798,43 @@ contract MiningDevice {
         mUserToDeviceToBalance[_user][_device]= BalanceUser({
             device: _device,
             balance: 0,
-            isCodeDevice: true
+            isCodeDevice: true,
+            isLock: false,
+            publicCode: _publicCode
         });
         mDeviceToUser[_device] = _user;
 
         emit DeviceActivated(_user, _device);  // Phát sự kiện liên kết thành công
     }
 
+    function updateNewUserLinkDevice(address _newWallet, address _oldWallet)external onlyMiningUser {
+        require(_newWallet != address(0) && _oldWallet != address(0),"address input wrong");
+
+        address[] storage deviceArr = userDevices[_oldWallet];
+        for(uint256 i; i < deviceArr.length; i++){
+            address _device = deviceArr[i];
+            linkTimeUserDevices[_device][_newWallet] = linkTimeUserDevices[_device][_oldWallet];  
+            delete linkTimeUserDevices[_device][_oldWallet];
+            mUserToDeviceToBalance[_newWallet][_device]= mUserToDeviceToBalance[_oldWallet][_device];
+            delete mUserToDeviceToBalance[_oldWallet][_device];
+            mDeviceToUser[_device] = _newWallet;
+
+            // Lưu lại thông tin user liên kết với device
+            address[] storage userArr = deviceUsers[_device];
+            for (uint256 j; j< userArr.length; j++){
+                if(userArr[j] == _oldWallet){
+                    userArr[j] = userArr[userArr.length -1];
+                    userArr.pop();
+                }
+            }
+            userArr.push(_newWallet);
+
+        }
+
+        userDevices[_newWallet] = userDevices[_oldWallet];
+        delete userDevices[_oldWallet];
+
+    }
     // Hàm chung xử lý link device (chỉ có thể gọi từ các hàm internal)
     function _linkDevice(address _user, bytes memory _signature, uint256 createdTime, address _device, bool isUserSignature) internal {
         // Kiểm tra điều kiện cơ bản
@@ -862,7 +878,9 @@ contract MiningDevice {
         mUserToDeviceToBalance[_user][_device]= BalanceUser({
             device: _device,
             balance: 0,
-            isCodeDevice: false
+            isCodeDevice: false,
+            isLock: false,
+            publicCode:  new bytes(0)
         });
         mDeviceToUser[_device] = _user;
         emit DeviceActivated(_user, _device);  // Phát sự kiện liên kết thành công
@@ -1042,14 +1060,13 @@ contract MiningUser {
     event ReferralRewardPaid(address indexed referrer, address indexed user, uint256 amount);
     event UserProcessing(address indexed user,address parent, bytes32 OTP);
     event UserActivated(address indexed user, address indexed activator);
-    event DeviceReplaced(address indexed user, address oldDevice, address newDevice);
 
     event ResourcePurchased(address indexed user, address indexed device, uint256 resourceAmount, uint256 usdtAmount);
     event DepositRefunded(address indexed user, uint256 index, uint256 usdtAmount, uint256 ethReceived);
+    event CreateOtp(address referral, bytes32 otp);
 
-
-    
-    event UserRef(address indexed referal, address indexed referer, string _referralEncryptTokenNoti);
+    event UserRef(address indexed referal, address indexed referer, bytes32 otp);
+    event DeviceReplaced(address oldWallet, address newWallet, uint256 atTime);
 
     uint8 private constant MAX_REFERRAL = 10;
     uint8 private constant MAX_LEVELS = 3;
@@ -1064,7 +1081,7 @@ contract MiningUser {
     MiningDevice public miningDeviceContract;
 
     address BE;
-    mapping(address => DraftUser) private draftUsers; // Đối tượng draft user
+    // mapping(address => DraftUser) private draftUsers; // Đối tượng draft user
 
     // khi là số âm, nghĩa là lấy 1 / cho số dương, còn khi là dương thì nhân trực tiếp
     int256 private halvingDeposit;
@@ -1074,6 +1091,9 @@ contract MiningUser {
     mapping(address => bool) public mUserToOtpStatus; //user => true if otp right
     address rootUser;
     address public owner;
+    mapping(bytes32 => uint256) public mOtpToExpireTime;
+    mapping(address => bytes32) public mReferalToOtp;
+    mapping(bytes32 => address) public deviceToActivatedUser; //hashDeviceId => user
     modifier onlyBE() {
         require(BE == msg.sender, "only BE can call");
         _;
@@ -1136,7 +1156,7 @@ contract MiningUser {
     function setHalvingDeposit(int256 _halvingDeposit) external onlyOwner {
         halvingDeposit = _halvingDeposit;
     }
-    function registerUser(address _user, address _parent) internal {
+    function registerUser(address _user, address _parent, bytes32 _hashDeviceID) internal {
         require(users[_user].parent == address(0), "User already exists");
         if(_parent != rootUser){
             require(users[_parent].parent != address(0), "Parent not exists");
@@ -1146,7 +1166,6 @@ contract MiningUser {
         require(users[_parent].referralCount < MAX_REFERRAL, "Max referrals reached");
         // parent can tham gia duoc 1 tuan thi moi gioi thieu
         require(block.timestamp - users[_parent].createdTime > TIME_REFERRAL, "Parent need joined before 2 minutes from this step");
-
         users[_user] = User({
             parent: _parent,
             device: address(0),
@@ -1156,80 +1175,48 @@ contract MiningUser {
         });
 
         users[_parent].referralCount++;
-        
+        //
+        deviceToActivatedUser[_hashDeviceID] = _user;
         emit UserRegistered(_user, _parent);
     }
 
-    // A show qr code info, B gọi lên SM
-    // encryptToken là token của phone đẻ cho nhận noti thông báo
-    // noti chứa code để active
-    function refUserViaQRCode(address _referralAddress, bytes memory _referralSignature, string memory _referralEncryptTokenNoti) external {
-         // ✳️ Kiểm tra người gọi đã được active
+    function createOTP() external returns(bytes32 otp){
+        otp = keccak256(abi.encodePacked(msg.sender, block.timestamp));
+        mReferalToOtp[msg.sender] = otp;
+        mOtpToExpireTime[otp] = block.timestamp + 10 minutes;
+        emit CreateOtp(msg.sender,otp);
+        return otp;
+    }
+    function refUserViaQRCode(address _referralAddress, bytes32 _otp, bytes32 _hashDeviceID) external {
+        require(mReferalToOtp[_referralAddress] == _otp, "wrong otp");
+        require(block.timestamp < mOtpToExpireTime[_otp], "otp expired");
         require(users[msg.sender].parent != address(0) || msg.sender == rootUser, "Only active users can refer others");
         require(users[_referralAddress].parent == address(0), "User exists");
-        require(draftUsers[_referralAddress].referral == address(0), "Pending user confirm");
+        require(deviceToActivatedUser[_hashDeviceID] == address(0), "Device already activated");
 
+        activeUserByBe(_referralAddress, _hashDeviceID);
+        emit UserRef(_referralAddress, msg.sender, _otp);
+    }
 
-        // kiểm tra chữ ký của _referralSignature, xem referral đã ký lên _referralEncryptTokenNoti với time nhỏ hơn 10 phút ko
+    function activeUserByBe(address _referral, bytes32 _hashDeviceID) internal {
+        registerUser(_referral,msg.sender, _hashDeviceID);
+        emit UserActivated(_referral, msg.sender);
+    }
+    function switchWalletWithDevice(bytes32 _hashDeviceID) external {
+        address oldWallet = deviceToActivatedUser[_hashDeviceID];
+        require(oldWallet != address(0), "Device not activated yet");
+        require(users[msg.sender].parent == address(0), "New wallet already registered");
 
-        address recoverAddress = Signature.recoverSigner(
-            keccak256(abi.encodePacked(_referralEncryptTokenNoti))
-            , _referralSignature
-        );
-
-        require(recoverAddress == _referralAddress, "address not match");
+        // Copy user data từ ví cũ sang ví mới
+        users[msg.sender] = users[oldWallet];
         
-        draftUsers[msg.sender] = DraftUser({
-            referral: _referralAddress,
-            encryptToken: _referralEncryptTokenNoti,
-            OTP: bytes32(0)
-        });
-
-        // bắn event token cho BE, để BE có thể gửi noti với _OTP cho user bấm vào
-        emit UserRef(_referralAddress, msg.sender, _referralEncryptTokenNoti);
-        // NotiParams memory params = NotiParams(
-        //         // NOTIFIER,
-        //         // data,
-        //         // dataStruct,
-        //         title,
-        //         body
-        //     );
-        // Notification.AddNoti(params, _to);
+        // Cập nhật lại device → wallet hiện tại
+        deviceToActivatedUser[_hashDeviceID] = msg.sender;
+        // Xoá thông tin ví cũ
+        delete users[oldWallet];
+        miningDeviceContract.updateNewUserLinkDevice(msg.sender,oldWallet);
+        emit DeviceReplaced(oldWallet, msg.sender, block.timestamp);
     }
-    function deleteRefUser() external {
-        require(users[msg.sender].parent == address(0), "User exists");
-        require(draftUsers[msg.sender].referral == address(0), "User exists");
-
-        delete draftUsers[msg.sender];
-    }
-
-    // user bấm vào noti, lấy OTP gửi lên SM tới đoạn cần khi user bấm vào noti và chọn active
-    function processUserWithOTP(address parent, bytes32 _OTP) external {
-        require(draftUsers[parent].referral != address(0), "User not exists");
-
-
-        draftUsers[parent].OTP = _OTP;
-
-        // gửi sự kiện cho BE
-        emit UserProcessing(msg.sender,parent, _OTP);
-    }
-    function updateOtpStatus(address parent,bool status) external onlyBE {
-        mUserToOtpStatus[parent] = status;
-    }
-    
-    // BE bắt được OTP, BE sẽ gọi lên để active ví cho user
-    function activeUserByBe(address _parent, bytes32 _OTP) external onlyBE {
-        // require(draftUsers[_parent].referral == address(0), "User exists");
-        require(draftUsers[_parent].OTP == _OTP, "OTP not matched");
-
-        address _user = draftUsers[_parent].referral;
-        registerUser(_user, _parent);
-
-        delete draftUsers[_user];
-        
-        emit UserActivated(_user, _parent);
-    }
-
 
     function checkJoined(address _user) external view returns (bool) {
         require(!users[_user].isLocked, "user is locked");
