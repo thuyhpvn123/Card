@@ -26,5 +26,5 @@ PrivateKey_: "4a0bc835dcc74257a99b744ea0d86b3495c0fa16a88b36b6cdd3c66088825890"
 PathLevelDB: "../db"
 ThirdPartyApiUrl: "https://payment-card.vipn.net/transaction/create"
 StoredPubKey: "./public_key"
-RpcURL: "https://rpc-proxy-sequoia.ibe.app:8446"
+RpcURL: "https://rpc-proxy-sequoia.iqnb.com:8446"
 

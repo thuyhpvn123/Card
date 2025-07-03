@@ -24,6 +24,7 @@ contract Code {
 
     address public admin;
     address public meLab;  // MeLab contract address
+    mapping(address => bool) public isAdmin;
 
     event CodeRequested(bytes code, address indexed assignedTo);
     event CodeApproved(bytes code, address indexed assignedTo);
@@ -45,16 +46,20 @@ contract Code {
         _;
     }
     modifier isAllowed() {
-        require(msg.sender == meLab || msg.sender == admin, "Only MeLab or admin can call this function");
+        require(isAdmin[msg.sender], "Only admin can call this function");
         _;
     }
     constructor(address[] memory _daoMembers) {
-        admin = msg.sender;
+        isAdmin[msg.sender] = true;
         daoMembers = _daoMembers;
+    }
+    function setAdmin(address _admin) external onlyAdmin {
+        isAdmin[_admin] = true;
     }
     // Set MeLab contract address
     function setMeLab(address _meLab) external onlyAdmin {
         meLab = _meLab;
+        isAdmin[_meLab] = true;
     }
     // Check if an address is a DAO member
     function isDAOMember(address member) public view returns (bool) {
@@ -427,8 +432,8 @@ contract Code {
         address recoveredAddress = _recover(hash, signature);
         // Extract Ethereum address from the public key
         address expectedAddress = address(uint160(uint256(keccak256(publicKey))));
-        console.log("recoveredAddress:",recoveredAddress);
-        console.log("expectedAddress:",expectedAddress);
+        // console.log("recoveredAddress:",recoveredAddress);
+        // console.log("expectedAddress:",expectedAddress);
         return recoveredAddress == expectedAddress;
     }
 

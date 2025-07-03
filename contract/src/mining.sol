@@ -379,8 +379,14 @@ contract MiningCodeSC {
     uint8 public halvingCount;
     address public migrateDataSC;
     mapping(address => bytes32[]) public mActivePrivateCodes; //user => mang priva
+    mapping(address => bool) public isMigrateSC;
+
     modifier onlyOwner() {
         require(msg.sender == owner, "Not owner");
+        _;
+    }
+    modifier isAllowed() {
+        require(isMigrateSC[msg.sender], "Only migrate contract can call this function");
         _;
     }
 
@@ -394,6 +400,10 @@ contract MiningCodeSC {
         halvingCount = 1;
 
     }
+    function setMigrateSC(address _migrateSc) external onlyOwner {
+        isMigrateSC[_migrateSc] = true;
+    }
+
     function setMigrateDataSC(address _migrateDataSC)external onlyOwner {
         migrateDataSC = _migrateDataSC;
     }
@@ -507,17 +517,8 @@ contract MiningCodeSC {
         delete commits[msg.sender]; // Xóa commit để tránh reuse
         emit CodeReplaced(msg.sender, boostRate, maxDuration, expireTime);
     }
-    // function checkUserExist(address _user)internal view returns(bool){
-    //     return migrateDataSC.checkUserExist(_user);
-    // }
-    // function migrateAmount(MigrateData[] memory datas)external onlyOwner(){
-    //     for(uint256 i; i< datas.length ;i++){
-    //         MigrateData memory data = datas[i];
-    //         _migrateAmount(data.user,data.privateCode,data.activeTime,data.amount);
-    //     }
         
-    // }
-    function migrateAmount(address user, bytes32  _privateCode, uint256 _activeTime, uint256 _amount) public {
+    function migrateAmount(address user, bytes32  _privateCode, uint256 _activeTime, uint256 _amount) external isAllowed {
         // require(checkUserExist(user),"user is not in data migrate");
         bytes32 hashedPrivateCode = keccak256(abi.encodePacked(_privateCode));
         require(miningPrivateCodes[hashedPrivateCode].owner == address(0), "Code not exists");
@@ -1063,7 +1064,7 @@ contract MiningUser {
 
     event ResourcePurchased(address indexed user, address indexed device, uint256 resourceAmount, uint256 usdtAmount);
     event DepositRefunded(address indexed user, uint256 index, uint256 usdtAmount, uint256 ethReceived);
-    event CreateOtp(address referral, bytes32 otp);
+    event RefererCreateOtp(address referral, bytes32 otp);
 
     event UserRef(address indexed referal, address indexed referer, bytes32 otp);
     event DeviceReplaced(address oldWallet, address newWallet, uint256 atTime);
@@ -1092,7 +1093,8 @@ contract MiningUser {
     address rootUser;
     address public owner;
     mapping(bytes32 => uint256) public mOtpToExpireTime;
-    mapping(address => bytes32) public mReferalToOtp;
+    // mapping(address => bytes32) public mReferalToOtp;
+    mapping(bytes32 => address) public mOtpToReferer; 
     mapping(bytes32 => address) public deviceToActivatedUser; //hashDeviceId => user
     modifier onlyBE() {
         require(BE == msg.sender, "only BE can call");
@@ -1179,28 +1181,32 @@ contract MiningUser {
         deviceToActivatedUser[_hashDeviceID] = _user;
         emit UserRegistered(_user, _parent);
     }
-
+    //referer create otp
     function createOTP() external returns(bytes32 otp){
         otp = keccak256(abi.encodePacked(msg.sender, block.timestamp));
-        mReferalToOtp[msg.sender] = otp;
+        // mReferalToOtp[msg.sender] = otp;
         mOtpToExpireTime[otp] = block.timestamp + 10 minutes;
-        emit CreateOtp(msg.sender,otp);
+        mOtpToReferer[otp] = msg.sender;
+        emit RefererCreateOtp(msg.sender,otp);
         return otp;
     }
-    function refUserViaQRCode(address _referralAddress, bytes32 _otp, bytes32 _hashDeviceID) external {
-        require(mReferalToOtp[_referralAddress] == _otp, "wrong otp");
+    //referal send otp
+    function refUserViaQRCode(bytes32 _otp, bytes32 _hashDeviceID) external {
+        require(mOtpToReferer[_otp] != address(0),"otp does not match any referer");
+        // require(mReferalToOtp[_referralAddress] == _otp, "wrong otp");
         require(block.timestamp < mOtpToExpireTime[_otp], "otp expired");
-        require(users[msg.sender].parent != address(0) || msg.sender == rootUser, "Only active users can refer others");
-        require(users[_referralAddress].parent == address(0), "User exists");
+        address referer = mOtpToReferer[_otp];
+        require(users[referer].parent != address(0) || referer == rootUser, "Only active users can refer others");
+        require(users[msg.sender].parent == address(0), "User exists");
         require(deviceToActivatedUser[_hashDeviceID] == address(0), "Device already activated");
 
-        activeUserByBe(_referralAddress, _hashDeviceID);
-        emit UserRef(_referralAddress, msg.sender, _otp);
+        activeUserByBe(msg.sender,referer, _hashDeviceID);
+        emit UserRef(msg.sender, referer, _otp);
     }
 
-    function activeUserByBe(address _referral, bytes32 _hashDeviceID) internal {
-        registerUser(_referral,msg.sender, _hashDeviceID);
-        emit UserActivated(_referral, msg.sender);
+    function activeUserByBe(address _referral,address _parent, bytes32 _hashDeviceID) internal {
+        registerUser(_referral,_parent, _hashDeviceID);
+        emit UserActivated(_referral, _parent);
     }
     function switchWalletWithDevice(bytes32 _hashDeviceID) external {
         address oldWallet = deviceToActivatedUser[_hashDeviceID];

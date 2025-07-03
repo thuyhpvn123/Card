@@ -39,8 +39,7 @@ interface IMiningDevice {
     function updateNewUserLinkDevice(address _newWallet, address _oldWallet)external ;
 }
 interface ICode {
-    function activateCode(uint256 indexCode,address user) external returns (uint256, uint256, uint256);
-    function createCodeDirect(
+        function createCodeDirect(
         bytes memory publicKey,
         uint256 boostRate,
         uint256 maxDuration,
@@ -50,6 +49,24 @@ interface ICode {
         bool transferable,
         uint256 expireTime
     ) external returns(bytes memory);
+    
+    function requestCode(
+        bytes memory publicKey,
+        uint256 boostRate,
+        uint256 maxDuration,
+        address assignedTo,
+        address referrer,
+        uint256 referralReward,
+        bool transferable,
+        uint256 expireTime
+    ) external returns(bytes memory);
+    
+    function voteCode(bytes memory code, bool approve) external;
+    function isDAOMember(address member) external view returns (bool);
+    function getCodeStatus(bytes memory code) external view returns(uint256 approveVotes, uint256 denyVotes);
+    function activateCode(uint256 indexCode, address user) external returns (uint256, uint256, uint256);
+    function getCodesByOwner(address owner) external view returns (bytes[] memory);
+
 }
 interface IMiningUser {
     function lockUser(address _user) external;
