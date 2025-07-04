@@ -24,7 +24,7 @@ contract Code {
 
     address public admin;
     address public meLab;  // MeLab contract address
-    mapping(address => bool) public isAdmin;
+    mapping(address => bool) public isAllow;
 
     event CodeRequested(bytes code, address indexed assignedTo);
     event CodeApproved(bytes code, address indexed assignedTo);
@@ -46,20 +46,21 @@ contract Code {
         _;
     }
     modifier isAllowed() {
-        require(isAdmin[msg.sender], "Only admin can call this function");
+        require(isAllow[msg.sender], "only Migrate SC can call this function");
         _;
     }
     constructor(address[] memory _daoMembers) {
-        isAdmin[msg.sender] = true;
+        isAllow[msg.sender] = true;
         daoMembers = _daoMembers;
+        admin = msg.sender;
     }
     function setAdmin(address _admin) external onlyAdmin {
-        isAdmin[_admin] = true;
+        isAllow[_admin] = true;
     }
     // Set MeLab contract address
     function setMeLab(address _meLab) external onlyAdmin {
         meLab = _meLab;
-        isAdmin[_meLab] = true;
+        isAllow[_meLab] = true;
     }
     // Check if an address is a DAO member
     function isDAOMember(address member) public view returns (bool) {

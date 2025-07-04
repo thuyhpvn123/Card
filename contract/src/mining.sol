@@ -732,7 +732,8 @@ contract MiningDevice {
     address private owner;
     address private miningCodeAddress;
     mapping(address => address) public mDeviceToUser;
-    mapping(address =>mapping(address => BalanceUser)) public mUserToDeviceToBalance;
+    mapping(address =>mapping(address => BalanceDevice)) public mUserToDeviceToBalance;
+    mapping(address => uint256) public mUserToBalance;
     modifier onlyMiningUser() {
         require(msg.sender == address(miningUserContract), "Only mining user can call this");
         _;
@@ -796,7 +797,7 @@ contract MiningDevice {
         linkTimeUserDevices[_device][_user] = block.timestamp;  // Lưu thời gian liên kết
         lastTimeMiningDevices[_device] = block.timestamp;  // Cập nhật thời gian khai thác
 
-        mUserToDeviceToBalance[_user][_device]= BalanceUser({
+        mUserToDeviceToBalance[_user][_device]= BalanceDevice({
             device: _device,
             balance: 0,
             isCodeDevice: true,
@@ -817,7 +818,9 @@ contract MiningDevice {
             linkTimeUserDevices[_device][_newWallet] = linkTimeUserDevices[_device][_oldWallet];  
             delete linkTimeUserDevices[_device][_oldWallet];
             mUserToDeviceToBalance[_newWallet][_device]= mUserToDeviceToBalance[_oldWallet][_device];
+            mUserToBalance[_newWallet] = mUserToBalance[_oldWallet];
             delete mUserToDeviceToBalance[_oldWallet][_device];
+            delete mUserToBalance[_oldWallet];
             mDeviceToUser[_device] = _newWallet;
 
             // Lưu lại thông tin user liên kết với device
@@ -876,7 +879,7 @@ contract MiningDevice {
 
         linkTimeUserDevices[_device][_user] = block.timestamp;  // Lưu thời gian liên kết
         lastTimeMiningDevices[_device] = block.timestamp;  // Cập nhật thời gian khai thác
-        mUserToDeviceToBalance[_user][_device]= BalanceUser({
+        mUserToDeviceToBalance[_user][_device]= BalanceDevice({
             device: _device,
             balance: 0,
             isCodeDevice: false,
@@ -971,6 +974,7 @@ contract MiningDevice {
         lastTimeMiningDevices[_device] = block.timestamp;
         address user = mDeviceToUser[_device];
         mUserToDeviceToBalance[user][_device].balance += amount;
+        mUserToBalance[user] += amount;
         // Emit sự kiện để ghi nhận thay đổi balance
         emit BalanceUpdated(_device, balances[_device]);
     }
@@ -984,6 +988,7 @@ contract MiningDevice {
         lastTimeMiningDevices[_device] = block.timestamp;
         address user = mDeviceToUser[_device];
         mUserToDeviceToBalance[user][_device].balance += amount;
+        mUserToBalance[user] += amount;
         // Emit sự kiện để ghi nhận thay đổi balance
         emit BalanceUpdated(_device, balances[_device]);
     }
@@ -1002,20 +1007,21 @@ contract MiningDevice {
         }
         return balance;
     }
-    function getAllDeviceBalances(address user) external view returns(BalanceUser[] memory){
+    function getAllDeviceBalances(address user) external view returns(BalanceDevice[] memory ,uint256){
         require(user !=address(0) , 'Invalid user');
         address[] memory userDeviceList = userDevices[user];
-        BalanceUser[] memory dataBalancesOfDeviceAUserArray = new BalanceUser[](userDeviceList.length);
+        BalanceDevice[] memory dataBalancesOfDeviceAUserArray = new BalanceDevice[](userDeviceList.length);
         for (uint256 i = 0; i < userDeviceList.length ;i++){  // duyệt qua tất cả thiết bị và lưu trữ balance nào đó
             dataBalancesOfDeviceAUserArray[i] = mUserToDeviceToBalance[user][userDeviceList[i]];
         }
-        return dataBalancesOfDeviceAUserArray;
+        return (dataBalancesOfDeviceAUserArray,mUserToBalance[user]);
     }
 
     function withdraw(address user, address device, uint256 amount) public onlyMiningUser {
         require(balances[device] >= amount, "Insufficient balance");
         balances[device] -= amount;
         mUserToDeviceToBalance[user][device].balance -= amount;
+        mUserToBalance[user] -= amount;
     }
 
 
@@ -1023,6 +1029,7 @@ contract MiningDevice {
         require(amount > 0, "Insufficient amount");
         balances[device] += amount;
         mUserToDeviceToBalance[user][device].balance += amount;
+        mUserToBalance[user] -= amount;
     }
 }
 
@@ -1096,6 +1103,7 @@ contract MiningUser {
     // mapping(address => bytes32) public mReferalToOtp;
     mapping(bytes32 => address) public mOtpToReferer; 
     mapping(bytes32 => address) public deviceToActivatedUser; //hashDeviceId => user
+    mapping(address => address[]) private children;
     modifier onlyBE() {
         require(BE == msg.sender, "only BE can call");
         _;
@@ -1177,6 +1185,7 @@ contract MiningUser {
         });
 
         users[_parent].referralCount++;
+        children[_parent].push(_user);
         //
         deviceToActivatedUser[_hashDeviceID] = _user;
         emit UserRegistered(_user, _parent);
@@ -1361,8 +1370,189 @@ contract MiningUser {
 
         emit DepositRefunded(msg.sender, index, info.usdtAmount, msg.value);
     }
-
     // Hàm nhận ETH từ validator
     receive() external payable {}
+
+    // Hàm lấy ra mảng BalanceWallet của 8 tầng dưới trên cây của user
+    function getDownlineBalances(address _user) external view returns (BalanceWallet[] memory) {
+        require(_user != address(0), "Invalid user address");
+        require(users[_user].parent != address(0), "User not exists");
+        require(!users[_user].isLocked, "User is locked");
+        
+        // Tạo mảng động để lưu trữ tất cả downline
+        BalanceWallet[] memory tempBalances = new BalanceWallet[](1000); // Giả sử tối đa 1000 downline
+        uint256 totalCount = 0;
+        
+        // Lấy downline của 8 tầng
+        totalCount = _getDownlineRecursive(_user, tempBalances, totalCount, 1, 8);
+        
+        // Tạo mảng với kích thước chính xác
+        BalanceWallet[] memory result = new BalanceWallet[](totalCount);
+        for (uint256 i = 0; i < totalCount; i++) {
+            result[i] = tempBalances[i];
+        }
+        
+        return result;
+    }
+
+    // Hàm đệ quy để lấy downline của nhiều tầng
+    function _getDownlineRecursive(
+        address _user, 
+        BalanceWallet[] memory balances, 
+        uint256 currentIndex, 
+        uint8 currentLevel, 
+        uint8 maxLevel
+    ) internal view returns (uint256) {
+        if (currentLevel > maxLevel) {
+            return currentIndex;
+        }
+        
+        // Lấy danh sách con trực tiếp của user hiện tại
+        address[] memory userChildren = children[_user];
+        
+        // Duyệt qua từng con
+        for (uint256 i = 0; i < userChildren.length; i++) {
+            address child = userChildren[i];
+            
+            // Kiểm tra child có hợp lệ không
+            if (child != address(0) && !users[child].isLocked) {
+                // Thêm child vào mảng kết quả
+                balances[currentIndex] = BalanceWallet({
+                    userAddress: child,
+                    balance: miningDeviceContract.mUserToBalance(child)
+                });
+                currentIndex++;
+                
+                // Đệ quy lấy downline của child
+                currentIndex = _getDownlineRecursive(child, balances, currentIndex, currentLevel + 1, maxLevel);
+            }
+        }
+        
+        return currentIndex;
+    }
+
+    // Hàm lấy downline của 1 tầng cụ thể
+    function getDownlineBalancesByLevel(address _user, uint8 level) external view returns (BalanceWallet[] memory) {
+        require(_user != address(0), "Invalid user address");
+        require(users[_user].parent != address(0), "User not exists");
+        require(!users[_user].isLocked, "User is locked");
+        require(level >= 1 && level <= 8, "Level must be between 1 and 8");
+        
+        // Tạo mảng động để lưu trữ downline của level cụ thể
+        BalanceWallet[] memory tempBalances = new BalanceWallet[](100); // Giả sử tối đa 100 downline trong 1 tầng
+        uint256 totalCount = 0;
+        
+        // Lấy downline của level cụ thể
+        totalCount = _getDownlineByLevel(_user, tempBalances, totalCount, 1, level);
+        
+        // Tạo mảng với kích thước chính xác
+        BalanceWallet[] memory result = new BalanceWallet[](totalCount);
+        for (uint256 i = 0; i < totalCount; i++) {
+            result[i] = tempBalances[i];
+        }
+        
+        return result;
+    }
+
+    // Hàm helper để lấy downline của 1 tầng cụ thể
+    function _getDownlineByLevel(
+        address _user, 
+        BalanceWallet[] memory balances, 
+        uint256 currentIndex, 
+        uint8 currentLevel, 
+        uint8 targetLevel
+    ) internal view returns (uint256) {
+        if (currentLevel > targetLevel) {
+            return currentIndex;
+        }
+        
+        // Lấy danh sách con trực tiếp của user hiện tại
+        address[] memory userChildren = children[_user];
+        
+        // Duyệt qua từng con
+        for (uint256 i = 0; i < userChildren.length; i++) {
+            address child = userChildren[i];
+            
+            // Kiểm tra child có hợp lệ không
+            if (child != address(0) && !users[child].isLocked) {
+                // Nếu đang ở tầng mục tiêu, thêm vào kết quả
+                if (currentLevel == targetLevel) {
+                    balances[currentIndex] = BalanceWallet({
+                        userAddress: child,
+                        balance: miningDeviceContract.mUserToBalance(child)
+                    });
+                    currentIndex++;
+                } else {
+                    // Nếu chưa đến tầng mục tiêu, tiếp tục đệ quy
+                    currentIndex = _getDownlineByLevel(child, balances, currentIndex, currentLevel + 1, targetLevel);
+                }
+            }
+        }
+        
+        return currentIndex;
+    }
+
+    // Hàm lấy tổng số downline và tổng balance của 8 tầng dưới
+    function getDownlineStats(address _user) external view returns (
+        uint256 totalDownlines,
+        uint256 totalBalance,
+        uint256[8] memory downlinesByLevel,
+        uint256[8] memory balancesByLevel
+    ) {
+        require(_user != address(0), "Invalid user address");
+        require(users[_user].parent != address(0), "User not exists");
+        require(!users[_user].isLocked, "User is locked");
+        
+        // Khởi tạo mảng để đếm số lượng và tổng balance theo từng tầng
+        for (uint8 i = 0; i < 8; i++) {
+            downlinesByLevel[i] = 0;
+            balancesByLevel[i] = 0;
+        }
+        
+        // Tính toán thống kê
+        _calculateDownlineStats(_user, 1, 8, downlinesByLevel, balancesByLevel);
+        
+        // Tính tổng
+        totalDownlines = 0;
+        totalBalance = 0;
+        for (uint8 i = 0; i < 8; i++) {
+            totalDownlines += downlinesByLevel[i];
+            totalBalance += balancesByLevel[i];
+        }
+        
+        return (totalDownlines, totalBalance, downlinesByLevel, balancesByLevel);
+    }
+
+    // Hàm helper để tính toán thống kê downline
+    function _calculateDownlineStats(
+        address _user,
+        uint8 currentLevel,
+        uint8 maxLevel,
+        uint256[8] memory downlinesByLevel,
+        uint256[8] memory balancesByLevel
+    ) internal view {
+        if (currentLevel > maxLevel) {
+            return;
+        }
+        
+        // Lấy danh sách con trực tiếp
+        address[] memory userChildren = children[_user];
+        
+        // Duyệt qua từng con
+        for (uint256 i = 0; i < userChildren.length; i++) {
+            address child = userChildren[i];
+            
+            if (child != address(0) && !users[child].isLocked) {
+                // Tăng số lượng downline cho tầng hiện tại
+                downlinesByLevel[currentLevel - 1]++;
+                
+                // Cộng balance cho tầng hiện tại
+                balancesByLevel[currentLevel - 1] += miningDeviceContract.mUserToBalance(child);
+                
+                // Đệ quy cho tầng tiếp theo
+                _calculateDownlineStats(child, currentLevel + 1, maxLevel, downlinesByLevel, balancesByLevel);
+            }
+        }
+    }
 
 }

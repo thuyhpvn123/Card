@@ -168,29 +168,37 @@ func (h *CardHandler) ListenEvents() {
 						time.Sleep(1 * time.Second)
 						continue
 					}
-
+					const maxBlockRange = 10000
 					// Lặp qua từng topic để lấy log
 					topics := []string{tokenRequestTopic, chargeRequestTopic, chargeRejectedTopic}
 					for _, topic := range topics {
-						logs, err := utils.GetLogs(
-							rpcURL, 
-							fmt.Sprintf("0x%x", fromBlock+1), 
-							fmt.Sprintf("0x%x", latestBlockUint), 
-							contractAddress, 
-							topic)
-						if err != nil {
-							logger.Error("Error fetching logs for topic", topic, ":", err)
-							time.Sleep(1 * time.Second)
-							continue
-						}
-
-						for _, raw := range logs {
-							var log model.EventLog
-							if err := json.Unmarshal(raw, &log); err != nil {
-								logger.Warn("Cannot decode event log:", err)
+						currentFrom := fromBlock + 1
+						for currentFrom <= latestBlockUint {
+							currentTo := currentFrom + maxBlockRange - 1
+							if currentTo > latestBlockUint {
+								currentTo = latestBlockUint
+							}
+							logs, err := utils.GetLogs(
+								rpcURL, 
+								fmt.Sprintf("0x%x", fromBlock+1), 
+								fmt.Sprintf("0x%x", latestBlockUint), 
+								contractAddress, 
+								topic)
+							if err != nil {
+								logger.Error("Error fetching logs for topic", topic, ":", err)
+								time.Sleep(1 * time.Second)
 								continue
 							}
-							h.eventChan <- log
+
+							for _, raw := range logs {
+								var log model.EventLog
+								if err := json.Unmarshal(raw, &log); err != nil {
+									logger.Warn("Cannot decode event log:", err)
+									continue
+								}
+								h.eventChan <- log
+							}
+							currentFrom = currentTo + 1
 						}
 					}
 					callmap := map[string]interface{}{

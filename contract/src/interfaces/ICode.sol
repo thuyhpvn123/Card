@@ -15,19 +15,17 @@ struct MiningCode {
 }
 enum CodeStatus { Pending, Approved, Actived, Expired }
 enum LockType { None, ActiveLock, MiningLock, TransferLock }
-struct BalanceUser {
+struct BalanceDevice {
     address device;
     uint256 balance;
     bool isCodeDevice; 
     bool isLock;
     bytes publicCode;
 }
-// struct MigrateData {
-//     address user;
-//     bytes32 privateCode;
-//     uint256 activeTime;
-//     uint256 amount;
-// }
+struct BalanceWallet {
+    address userAddress;
+    uint256 balance;
+}
 
 interface PublicKeyFromPrivateKey {
     function getPublicKeyFromPrivate(bytes32 _privateCode) external returns (bytes memory);

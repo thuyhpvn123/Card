@@ -4,14 +4,12 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/ICode.sol";
 contract MigrateDataSC is Ownable {
     struct MigrateDataUser {
-        // uint256 boostRate;        // Mining boost rate
         uint256 maxDuration;      // Maximum valid duration
-        CodeStatus status;        // Current status of the code
         address assignedTo;       // Address that owns the code
-        uint256 expireTime;       //max time to activate code
         uint256 activeTime;
         uint256 amount;
     }
+
     uint256 public totalAmount;
     mapping(address => address) public mOldeAddToNewAdd;
     ICode public codeContract;
@@ -19,6 +17,7 @@ contract MigrateDataSC is Ownable {
     mapping(address => MigrateDataUser[]) public mAddToDataUsers;
     MigrateDataUser[] public userDataArr;
     mapping(address => bool) public isOldAddExist;
+    mapping(address => mapping(uint256 => bool)) public isAddIndexMigrated;
     constructor() Ownable(msg.sender){}
 
     function setCodeContract(address _codeContract) external onlyOwner {
@@ -51,6 +50,8 @@ contract MigrateDataSC is Ownable {
         address newWallet = msg.sender;
         require (checkUserExist(_oldWallet), "user doesnt exist");
         require (_oldWallet != address(0),"address is zero");
+        require(_index < mAddToDataUsers[_oldWallet].length,"index not in data users");
+        require(!isAddIndexMigrated[_oldWallet][_index], "code address in this index already migrated");
         mOldeAddToNewAdd[_oldWallet] = newWallet;
         MigrateDataUser memory dataUser = mAddToDataUsers[_oldWallet][_index];
         codeContract.createCodeDirect(
@@ -61,7 +62,7 @@ contract MigrateDataSC is Ownable {
             address(0),
             0,
             false,
-            dataUser.expireTime
+            0
         );
         miningCodeSC.migrateAmount(
             dataUser.assignedTo,
@@ -69,6 +70,7 @@ contract MigrateDataSC is Ownable {
             dataUser.activeTime, 
             dataUser.amount
         );
+        isAddIndexMigrated[_oldWallet][_index] = true;
 
     }
 
