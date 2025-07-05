@@ -693,8 +693,6 @@ contract MiningCodeSC {
             activeCodes.pop();
         }
         lastTimeMiningDevices = block.timestamp;
-
-        
     }
 
 }
@@ -1104,6 +1102,7 @@ contract MiningUser {
     mapping(bytes32 => address) public mOtpToReferer; 
     mapping(bytes32 => address) public deviceToActivatedUser; //hashDeviceId => user
     mapping(address => address[]) private children;
+    mapping(bytes32 => bool) public isOtpUsed; //otp => used(true)
     modifier onlyBE() {
         require(BE == msg.sender, "only BE can call");
         _;
@@ -1201,6 +1200,7 @@ contract MiningUser {
     }
     //referal send otp
     function refUserViaQRCode(bytes32 _otp, bytes32 _hashDeviceID) external {
+        require(!isOtpUsed[_otp],"otp was used");
         require(mOtpToReferer[_otp] != address(0),"otp does not match any referer");
         // require(mReferalToOtp[_referralAddress] == _otp, "wrong otp");
         require(block.timestamp < mOtpToExpireTime[_otp], "otp expired");
@@ -1210,6 +1210,7 @@ contract MiningUser {
         require(deviceToActivatedUser[_hashDeviceID] == address(0), "Device already activated");
 
         activeUserByBe(msg.sender,referer, _hashDeviceID);
+        isOtpUsed[_otp] = true;
         emit UserRef(msg.sender, referer, _otp);
     }
 
