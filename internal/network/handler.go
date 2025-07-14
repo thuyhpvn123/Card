@@ -549,15 +549,15 @@ func (h *CardHandler) monitorTransaction(tokenId [32]byte, ctx context.Context, 
 				}	
 				return
 			}
-
-			if strings.Contains(status,"transaction not exists") {
-				_,err := h.service.UpdateTxStatus(tokenId, txID, 0, uint64(atTime), "fail")
-				if err != nil {
-					logger.Error("Error when MintUTXO:",err)
-					return
-				}	
-				return
-			}
+			//co truong hop : transaction not exists (not in Unsettled) -> ma sau do giao dich la success-> tam comment lai
+			// if strings.Contains(status,"transaction not exists") {
+			// 	_,err := h.service.UpdateTxStatus(tokenId, txID, 0, uint64(atTime), "fail")
+			// 	if err != nil {
+			// 		logger.Error("Error when MintUTXO:",err)
+			// 		return
+			// 	}	
+			// 	return
+			// }
 
 			logger.Info("🔄 Vẫn đang kiểm tra...")
 		}

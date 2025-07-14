@@ -325,7 +325,6 @@ contract CardTokenManager is Ownable {
             return (false,"Card is locked");
         }
 
-
         // Global rule check cho token
         require(tokenUsagePerMinute[tokenId][minute] < smRule.maxPerMinute, "SM: token minute limit");
         require(tokenUsagePerHour[tokenId][hour] < smRule.maxPerHour, "SM: token hour limit");

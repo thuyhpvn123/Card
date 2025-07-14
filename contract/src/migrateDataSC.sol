@@ -3,12 +3,7 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/ICode.sol";
 contract MigrateDataSC is Ownable {
-    struct MigrateDataUser {
-        uint256 maxDuration;      // Maximum valid duration
-        address assignedTo;       // Address that owns the code
-        uint256 activeTime;
-        uint256 amount;
-    }
+
 
     uint256 public totalAmount;
     mapping(address => address) public mOldeAddToNewAdd;
@@ -32,12 +27,16 @@ contract MigrateDataSC is Ownable {
     }
     function BEmigrateData(MigrateDataUser[] memory dataUsers)external onlyOwner {
         for (uint256 i; i<dataUsers.length; i++){
+            // require(!isOldAddExist[dataUsers[i].assignedTo],"address already exists");
             mAddToDataUsers[dataUsers[i].assignedTo].push(dataUsers[i]);
             userDataArr.push(dataUsers[i]);
             isOldAddExist[dataUsers[i].assignedTo] = true;
             totalAmount += dataUsers[i].amount;
         }
         
+    }
+    function getAllMigrateDataUsers() external view returns(MigrateDataUser[] memory ){
+        return userDataArr;
     }
     function checkUserExist (address user)internal view returns(bool){
         return isOldAddExist[user] ;
@@ -46,7 +45,7 @@ contract MigrateDataSC is Ownable {
         require(checkUserExist(user),"user data doesnt exist");
         return mAddToDataUsers[user];
     }
-    function FEMigrate(address _oldWallet, bytes memory _publicCode, bytes32 _privateCode, uint256 _index) external {
+    function FEMigrate(address _oldWallet, bytes memory _publicCode, bytes32 _privateCode, uint256 _index, bytes32 _hashDeviceId) external {
         address newWallet = msg.sender;
         require (checkUserExist(_oldWallet), "user doesnt exist");
         require (_oldWallet != address(0),"address is zero");
@@ -56,21 +55,23 @@ contract MigrateDataSC is Ownable {
         MigrateDataUser memory dataUser = mAddToDataUsers[_oldWallet][_index];
         codeContract.createCodeDirect(
             _publicCode,
-            0,
+            dataUser.boostRate,
             dataUser.maxDuration,
-            dataUser.assignedTo,
+            msg.sender,
             address(0),
             0,
             false,
             0
         );
         miningCodeSC.migrateAmount(
-            dataUser.assignedTo,
+            msg.sender,
             _privateCode,
             dataUser.activeTime, 
-            dataUser.amount
+            dataUser.amount,
+            _hashDeviceId
         );
         isAddIndexMigrated[_oldWallet][_index] = true;
+        mAddToDataUsers[_oldWallet][_index].isMigrated = true;
 
     }
 

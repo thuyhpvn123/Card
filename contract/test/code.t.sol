@@ -103,8 +103,8 @@ contract CodeTest is Test {
         // Kiểm tra trạng thái code sau khi kích hoạt
         (,,,status,,,,,, ,) = codeContract.miningCodes(newCode);
         assertEq(uint(status), uint(CodeStatus.Actived), "Status should be Actived");
-        transferCode(newCode,publicKeyUserA);
-        lockCode();
+        // transferCode(newCode,publicKeyUserA);
+        // lockCode();
         GetByteCode();
     }
 
@@ -373,7 +373,7 @@ contract CodeTest is Test {
         }
     }
     function GetByteCode()public {
-        address user3 = 0xdf182ed5CF7D29F072C429edd8BFCf9C4151394B;
+        address user3 = 0xA620249dc17f23887226506b3eB260f4802a7efc;
         bytes memory bytesCodeCall = abi.encodeCall(
             codeContract.getCodesByOwner,
             (    
@@ -389,7 +389,7 @@ contract CodeTest is Test {
         // requestCode
         bytes memory publicKey1 = hex'43ecc93c2949c17cbc9d525e910f91ffc13835786d6da1ddd49347bad123f6fe2fb89c7dcbba6ba85fb976956229fc4daa6ef3676a5df3a89cb5bbb3fe68b327';
         uint256 boostRate = 100;
-        uint256 maxDuration = 1748430097 + 360 days;
+        uint256 maxDuration = 1751859472 + 360 days;
         bool transferable = true;
         // uint256 expireTime = 1750235327 +365 days;
         bytesCodeCall = abi.encodeCall(

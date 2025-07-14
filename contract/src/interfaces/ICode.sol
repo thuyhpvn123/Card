@@ -15,6 +15,14 @@ struct MiningCode {
 }
 enum CodeStatus { Pending, Approved, Actived, Expired }
 enum LockType { None, ActiveLock, MiningLock, TransferLock }
+struct MigrateDataUser {
+    uint256 maxDuration;      // Maximum valid duration
+    address assignedTo;       // Address that owns the code
+    uint256 activeTime;
+    uint256 amount;
+    bool    isMigrated;
+    uint256 boostRate;
+}
 struct BalanceDevice {
     address device;
     uint256 balance;
@@ -25,15 +33,22 @@ struct BalanceDevice {
 struct BalanceWallet {
     address userAddress;
     uint256 balance;
+    uint8 level; // Tầng của user (1-8)
 }
-
+struct BalanceHistory {
+    uint256 timestamp;
+    Action action; // "add" hoặc "withdraw"
+    uint256 amount;
+    address device;
+}
+enum Action {Add, Withdraw}
 interface PublicKeyFromPrivateKey {
     function getPublicKeyFromPrivate(bytes32 _privateCode) external returns (bytes memory);
 }
 interface IMiningDevice {
     function addBalance(address miner, uint256 amount) external;
     function addBalanceMigrate(address miner, uint256 amount) external;
-    function linkCodeWithUser(address _user, address _device, bytes memory publicCode) external;
+    function linkCodeWithUser(address _user, address _device, bytes memory publicCode, bytes32 hashDeviceId) external;
     function updateNewUserLinkDevice(address _newWallet, address _oldWallet)external ;
 }
 interface ICode {
@@ -73,5 +88,5 @@ interface IMiningUser {
 }
 interface IMiningCode {
     // function migrateAmount(MigrateData[] memory datas)external;
-    function migrateAmount(address user, bytes32  _privateCode, uint256 _activeTime, uint256 _amount) external; 
+    function migrateAmount(address user, bytes32  _privateCode, uint256 _activeTime, uint256 _amount, bytes32 _hashDeviceId) external; 
 }

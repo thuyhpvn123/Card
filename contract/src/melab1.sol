@@ -108,6 +108,8 @@ contract MeLab is Ownable {
 
     address public boostStorage;
     address public miningMeLab;
+    uint256 public MAX_PRICE;
+    uint256 public MAX_BOOST_RATE;
     // ==== End Variable Zone ====
 
     event ECreateUserProposal(uint256 proposalId);
@@ -132,6 +134,8 @@ contract MeLab is Ownable {
         validProposalType[ADD_MEMBER] = true;
         validProposalType[REVOKE_MEMBER] = true;
         validProposalType[CREATE_CODE] = true;
+        MAX_BOOST_RATE = 1_000_000;
+        MAX_PRICE = 100_000 * 10**15;
     }
 
     modifier onlyRoleOwner() {
@@ -165,7 +169,13 @@ contract MeLab is Ownable {
     function setCodeContract(address _codeContract) external onlyOwner {
         codeContract = ICode(_codeContract);
     }
+    function setMaxPrice(uint256 _maxPrice) external onlyOwner {
+        MAX_PRICE = _maxPrice;
+    }
 
+    function setMaxBoosteRate(uint256 _maxBoostRate) external onlyOwner {
+        MAX_BOOST_RATE = _maxBoostRate;
+    }
     // Updated createCodeProposal function to work with Code contract
     function createCodeProposal(
         bytes memory _publicKey,
@@ -178,6 +188,8 @@ contract MeLab is Ownable {
         uint256 _planPrice,
         uint256 _expireTime
     ) external onlyRoleMember returns (uint256) {
+        require(_planPrice <= MAX_PRICE, "price can not over max price");
+        require(_boostRate <= MAX_BOOST_RATE, "boost rate can not over max boost rate");
         require(_planPrice / usdtDecimal > 0, "MetaLab: Invalid Code Value");
         require(_maxDuration > 0, "MetaLab: Invalid Max Duration");
         require(_assignedTo != address(0), "MetaLab: Invalid Assigned Address");

@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 // import "@openzeppelin/contracts/access/Ownable.sol";
-// import "forge-std/console.sol";
+import "forge-std/console.sol";
 import "./interfaces/ICode.sol";
 /*
 * Luồng migrate số dư và code đào: có 2 smart contract là migrareWallet và migrateCode.
@@ -264,7 +264,7 @@ contract PendingMiningDevice {
     // Miner yêu cầu rút reward sau 48h
     function claimReward() external {
         address miner = msg.sender; // Lấy miner từ msg.sender (người gọi hàm)
-        require(pendingBalance[miner] > 0, "No reward available for claim");
+        require(pendingBalance[miner] > 0, "No reward available for claim 1");
         uint256 claimableAmount = 0;
         
         // Duyệt qua các pending rewards và kiểm tra thời gian pending >= 48h
@@ -281,8 +281,8 @@ contract PendingMiningDevice {
             }
         }
 
-        require(claimableAmount > 0, "No reward available for claim");
-        require(pendingBalance[miner] >= claimableAmount, "No reward available for claim");
+        require(claimableAmount > 0, "No reward available for claim 2");
+        require(pendingBalance[miner] >= claimableAmount, "No reward available for claim 3");
         
         // Cộng reward vào balance chính của miner
         pendingBalance[miner] -= claimableAmount;
@@ -375,7 +375,7 @@ contract MiningCodeSC {
     address owner;
     IMiningDevice private miningDevice;
     IMiningUser public miningUser;
-    uint256 private halvingReward; //0.0625 => halvingReward 4 chu so/10.000
+    uint256 private halvingReward; //0.0625 => halvingReward 4 chu so/10.000. toc do dao la 0.0625 MTD/h 
     uint8 public halvingCount;
     address public migrateDataSC;
     mapping(address => bytes32[]) public mActivePrivateCodes; //user => mang priva
@@ -518,8 +518,8 @@ contract MiningCodeSC {
         emit CodeReplaced(msg.sender, boostRate, maxDuration, expireTime);
     }
         
-    function migrateAmount(address user, bytes32  _privateCode, uint256 _activeTime, uint256 _amount) external isAllowed {
-        // require(checkUserExist(user),"user is not in data migrate");
+    function migrateAmount(address user, bytes32  _privateCode, uint256 _activeTime, uint256 _amount, bytes32 hashDeviceId) external isAllowed {
+        // require(miningPrivateCodes[hashedPrivateCode].maxDuration > block.timestamp,"code expired");
         bytes32 hashedPrivateCode = keccak256(abi.encodePacked(_privateCode));
         require(miningPrivateCodes[hashedPrivateCode].owner == address(0), "Code not exists");
         require(miningPrivateCodes[hashedPrivateCode].activeTime == 0, "Code already activated");
@@ -533,14 +533,16 @@ contract MiningCodeSC {
 
         // _device để lấy 19 byte cuối (152 bits) và giữ byte đầu là 0
         address _deviceRemoveFirstBytes = address(uint160(uint256(hashedPublicKey) & 0x0000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF));
-        miningDevice.linkCodeWithUser(user, _deviceRemoveFirstBytes,publicKey);
+        miningDevice.linkCodeWithUser(user, _deviceRemoveFirstBytes,publicKey,hashDeviceId);
 
         miningPrivateCodes[hashedPrivateCode].device = _deviceRemoveFirstBytes;
         miningPrivateCodes[hashedPrivateCode].privateCode = _privateCode;
         
         // lưu danh sách active code
-        activeCodes.push(hashedPrivateCode);
-        mActivePrivateCodes[user].push(_privateCode);
+        if(miningPrivateCodes[hashedPrivateCode].maxDuration > block.timestamp){
+            activeCodes.push(hashedPrivateCode);
+            mActivePrivateCodes[user].push(_privateCode);
+        }
         //migrate amount
         miningDevice.addBalanceMigrate(_deviceRemoveFirstBytes, _amount);
     }
@@ -549,7 +551,7 @@ contract MiningCodeSC {
      * @param _privateCode Mã kích hoạt thật
      * @param _secret Giá trị bí mật đã dùng khi tạo commit
      */
-    function activateCode(bytes32  _privateCode, bytes memory _secret) external {
+    function activateCode(bytes32  _privateCode, bytes memory _secret, bytes32 hashDeviceId) external {
         ActivationCommit memory commit = commits[msg.sender];
 
         require(commit.commitHash != 0, "No commit found");
@@ -580,7 +582,7 @@ contract MiningCodeSC {
 
         // _device để lấy 19 byte cuối (152 bits) và giữ byte đầu là 0
         address _deviceRemoveFirstBytes = address(uint160(uint256(hashedPublicKey) & 0x0000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF));
-        miningDevice.linkCodeWithUser(msg.sender, _deviceRemoveFirstBytes,publicKey);
+        miningDevice.linkCodeWithUser(msg.sender, _deviceRemoveFirstBytes,publicKey, hashDeviceId);
 
         miningPrivateCodes[hashedPrivateCode].device = _deviceRemoveFirstBytes;
         miningPrivateCodes[hashedPrivateCode].privateCode = _privateCode;
@@ -644,7 +646,6 @@ contract MiningCodeSC {
         // console.log("activeCodes.length:",activeCodes.length);
         for (uint256 i = 0; i < activeCodes.length; i++) {
             DataCode memory miningPrivateCode = miningPrivateCodes[activeCodes[i]];
-
             if (block.timestamp >= miningPrivateCode.expireTime ) {
                 removedIndexCodes[totalRemovedIndexCode] = i;
                 totalRemovedIndexCode += 1;
@@ -654,43 +655,48 @@ contract MiningCodeSC {
             // uint256 claimableAmount = miningPrivateCode.boostRate * halvingReward / 10_000;
             uint256 claimableAmount;
             if(lastTimeMiningDevices == 0){
-                claimableAmount = miningPrivateCode.boostRate * halvingReward / 10_000 ;              
+                claimableAmount = miningPrivateCode.boostRate * halvingReward *10**15/ 10_000 ;        //tinh toc do dao = MTD ma 1MTD = 10^15 wei      
             }else{
-                claimableAmount = miningPrivateCode.boostRate * halvingReward *(block.timestamp - lastTimeMiningDevices)/360 * 10_000 ; //360 la doi tu giay sang gio theo toc do dao tinh theo gio: 0.0625/h
+                claimableAmount = miningPrivateCode.boostRate * halvingReward *(block.timestamp - lastTimeMiningDevices)*10**15/3_600 / 10_000 ; //3600 la doi tu giay sang gio theo toc do dao tinh theo gio: 0.0625/h
             }
             // tinh cho ref
 
-            if(miningPrivateCode.ref_1 != address(0)){
+            if(miningPrivateCode.ref_1 != address(0) && claimableAmount *  BONUS_REF_1 / 100  > 0){
                 miningDevice.addBalance(miningPrivateCode.ref_1, (claimableAmount *  BONUS_REF_1 / 100 ));
             }
-            if(miningPrivateCode.ref_2 != address(0)){
+            if(miningPrivateCode.ref_2 != address(0) && claimableAmount *  BONUS_REF_2 / 100 > 0){
                 miningDevice.addBalance(miningPrivateCode.ref_2, (claimableAmount *  BONUS_REF_2 / 100 ));
             }
-            if(miningPrivateCode.ref_3 != address(0)){
+            if(miningPrivateCode.ref_3 != address(0) && claimableAmount *  BONUS_REF_3 / 100 > 0){
                 miningDevice.addBalance(miningPrivateCode.ref_3, (claimableAmount *  BONUS_REF_3 / 100 ));
             }
-            if(miningPrivateCode.ref_4 != address(0)){
+            if(miningPrivateCode.ref_4 != address(0) && claimableAmount *  BONUS_REF_4 / 100 > 0){
                 miningDevice.addBalance(miningPrivateCode.ref_4, (claimableAmount *  BONUS_REF_4 / 100 ));
             }
-            if(miningPrivateCode.showroom != address(0)){
+            if(miningPrivateCode.showroom != address(0) && claimableAmount *  BONUS_SHOWROOM / 100 > 0){
                 miningDevice.addBalance(miningPrivateCode.showroom, (claimableAmount *  BONUS_SHOWROOM / 100 ));
             }
 
             // xử lý cho việc cộng balances
-            if(miningPrivateCode.device != address(0)){
+            if(miningPrivateCode.device != address(0) && claimableAmount > 0){
+                
                 miningDevice.addBalance(miningPrivateCode.device, claimableAmount);
             }
         }
 
         // Xóa từ cuối về đầu
         for (uint256 i = totalRemovedIndexCode; i > 0; i--) {
+            address owner = miningPrivateCodes[activeCodes[i]].owner;
             uint256 indexCode = removedIndexCodes[i - 1];
 
             if ( indexCode != activeCodes.length - 1 ) {
                 activeCodes[indexCode] = activeCodes[activeCodes.length - 1];
+                mActivePrivateCodes[owner][indexCode] = mActivePrivateCodes[owner][mActivePrivateCodes[owner].length - 1];
             }
 
             activeCodes.pop();
+            mActivePrivateCodes[owner].pop();
+            
         }
         lastTimeMiningDevices = block.timestamp;
     }
@@ -730,8 +736,12 @@ contract MiningDevice {
     address private owner;
     address private miningCodeAddress;
     mapping(address => address) public mDeviceToUser;
-    mapping(address =>mapping(address => BalanceDevice)) public mUserToDeviceToBalance;
+    mapping(address =>mapping(bytes32 =>mapping(address => BalanceDevice))) public mUserToHashDeviceToBalance;
+    mapping(address =>mapping(address => bytes32)) public mUserToDeviceToHashDevice;
     mapping(address => uint256) public mUserToBalance;
+    mapping(address => BalanceHistory[]) public userBalanceHistories;
+    mapping(address => BalanceHistory[]) public mDeviceToBalanceHistories;
+
     modifier onlyMiningUser() {
         require(msg.sender == address(miningUserContract), "Only mining user can call this");
         _;
@@ -775,7 +785,7 @@ contract MiningDevice {
         isAdmin[_admin] = _approved;
     }
     // Hàm chung xử lý link device chỉ gọi được từ miningCode
-    function linkCodeWithUser(address _user, address _device, bytes memory _publicCode) external onlyMiningCode {
+    function linkCodeWithUser(address _user, address _device, bytes memory _publicCode, bytes32 hashDeviceId) external onlyMiningCode {
         // Kiểm tra điều kiện cơ bản
         require(_user != address(0), "Invalid user address");
         require(_device != address(0), "Invalid device address");
@@ -794,8 +804,8 @@ contract MiningDevice {
 
         linkTimeUserDevices[_device][_user] = block.timestamp;  // Lưu thời gian liên kết
         lastTimeMiningDevices[_device] = block.timestamp;  // Cập nhật thời gian khai thác
-
-        mUserToDeviceToBalance[_user][_device]= BalanceDevice({
+        mUserToDeviceToHashDevice[_user][_device] = hashDeviceId;
+        mUserToHashDeviceToBalance[_user][hashDeviceId][_device]= BalanceDevice({
             device: _device,
             balance: 0,
             isCodeDevice: true,
@@ -807,18 +817,17 @@ contract MiningDevice {
         emit DeviceActivated(_user, _device);  // Phát sự kiện liên kết thành công
     }
 
-    function updateNewUserLinkDevice(address _newWallet, address _oldWallet)external onlyMiningUser {
+    function updateNewUserLinkDevice(address _newWallet, address _oldWallet, bytes32 hashDeviceId)external onlyMiningUser {
         require(_newWallet != address(0) && _oldWallet != address(0),"address input wrong");
-
+        console.log("_oldWallet:",_oldWallet);
         address[] storage deviceArr = userDevices[_oldWallet];
+        console.log("deviceArr.length:",deviceArr.length);
         for(uint256 i; i < deviceArr.length; i++){
             address _device = deviceArr[i];
             linkTimeUserDevices[_device][_newWallet] = linkTimeUserDevices[_device][_oldWallet];  
             delete linkTimeUserDevices[_device][_oldWallet];
-            mUserToDeviceToBalance[_newWallet][_device]= mUserToDeviceToBalance[_oldWallet][_device];
-            mUserToBalance[_newWallet] = mUserToBalance[_oldWallet];
-            delete mUserToDeviceToBalance[_oldWallet][_device];
-            delete mUserToBalance[_oldWallet];
+            mUserToHashDeviceToBalance[_newWallet][hashDeviceId][_device]= mUserToHashDeviceToBalance[_oldWallet][hashDeviceId][_device];    
+            delete mUserToHashDeviceToBalance[_oldWallet][hashDeviceId][_device];           
             mDeviceToUser[_device] = _newWallet;
 
             // Lưu lại thông tin user liên kết với device
@@ -832,13 +841,16 @@ contract MiningDevice {
             userArr.push(_newWallet);
 
         }
+        mUserToBalance[_newWallet] = mUserToBalance[_oldWallet];
+        delete mUserToBalance[_oldWallet];
+        console.log("_newWallet:",_newWallet);
 
         userDevices[_newWallet] = userDevices[_oldWallet];
         delete userDevices[_oldWallet];
 
     }
     // Hàm chung xử lý link device (chỉ có thể gọi từ các hàm internal)
-    function _linkDevice(address _user, bytes memory _signature, uint256 createdTime, address _device, bool isUserSignature) internal {
+    function _linkDevice(address _user, bytes memory _signature, uint256 createdTime, address _device, bool isUserSignature, bytes32 hashDeviceId) internal {
         // Kiểm tra điều kiện cơ bản
         require(_user != address(0), "Invalid user address");
         require(_device != address(0), "Invalid device address");
@@ -872,12 +884,14 @@ contract MiningDevice {
         require(block.timestamp - createdTime <= 600, "Signature expired");        // return (block.timestamp - createdTime);
         // Liên kết thiết bị với user
         userDevices[_user].push(_device);  // Thêm thiết bị vào danh sách của user
+        console.log("userDevices[_user]1111:",userDevices[_user].length);
         // Lưu lại thông tin user liên kết với device
         deviceUsers[_device].push(_user);
 
         linkTimeUserDevices[_device][_user] = block.timestamp;  // Lưu thời gian liên kết
         lastTimeMiningDevices[_device] = block.timestamp;  // Cập nhật thời gian khai thác
-        mUserToDeviceToBalance[_user][_device]= BalanceDevice({
+        mUserToDeviceToHashDevice[_user][_device] = hashDeviceId;
+        mUserToHashDeviceToBalance[_user][hashDeviceId][_device]= BalanceDevice({
             device: _device,
             balance: 0,
             isCodeDevice: false,
@@ -885,6 +899,8 @@ contract MiningDevice {
             publicCode:  new bytes(0)
         });
         mDeviceToUser[_device] = _user;
+        console.log("mDeviceToUser _device", _device);
+        console.log("mDeviceToUser _user", _user);
         emit DeviceActivated(_user, _device);  // Phát sự kiện liên kết thành công
     }
     
@@ -900,25 +916,25 @@ contract MiningDevice {
     //         return output;
     //     }
     // Hàm cho thiết bị gọi để liên kết
-    function deviceLinkToUser(address _user, bytes memory _signature, uint256 createdTime) external {
+    function deviceLinkToUser(address _user, bytes memory _signature, uint256 createdTime, bytes32 hashDeviceId) external {
         require(_user != address(0), "Invalid user address");
 
         // Lấy địa chỉ của thiết bị từ msg.sender
         address deviceAddress = msg.sender;
 
         // Gọi hàm nội bộ để xử lý liên kết, với isUserSignature = true vì chữ ký của user cần xác minh
-        _linkDevice(_user, _signature, createdTime, deviceAddress, false);
+        _linkDevice(_user, _signature, createdTime, deviceAddress, false, hashDeviceId);
     }
 
     // Hàm cho người dùng gọi để liên kết
-    function userLinkToDevice(address _device, bytes memory _signature, uint256 createdTime) external {
+    function userLinkToDevice(address _device, bytes memory _signature, uint256 createdTime, bytes32 hashDeviceId) external {
         require(_device != address(0), "Invalid device address");
 
         // Lấy địa chỉ của người dùng từ msg.sender
         address userAddress = msg.sender;
 
         // Gọi hàm nội bộ để xử lý liên kết, với isUserSignature = false vì chữ ký của device cần xác minh
-        _linkDevice(userAddress, _signature, createdTime, _device, true);
+        _linkDevice(userAddress, _signature, createdTime, _device, true, hashDeviceId);
     }
 
     // Hàm để khóa tất cả thiết bị của một user
@@ -971,8 +987,19 @@ contract MiningDevice {
 
         lastTimeMiningDevices[_device] = block.timestamp;
         address user = mDeviceToUser[_device];
-        mUserToDeviceToBalance[user][_device].balance += amount;
+        bytes32 hashDeviceId = mUserToDeviceToHashDevice[user][_device];
+        mUserToHashDeviceToBalance[user][hashDeviceId][_device].balance += amount;
+        console.log("user:",user);
+        console.log("_device:",_device);
         mUserToBalance[user] += amount;
+        BalanceHistory memory balanceHistory = BalanceHistory({
+            timestamp: block.timestamp,
+            action: Action.Add,
+            amount: amount,
+            device: _device
+        });
+        userBalanceHistories[user].push(balanceHistory);
+        mDeviceToBalanceHistories[_device].push(balanceHistory);
         // Emit sự kiện để ghi nhận thay đổi balance
         emit BalanceUpdated(_device, balances[_device]);
     }
@@ -985,8 +1012,17 @@ contract MiningDevice {
 
         lastTimeMiningDevices[_device] = block.timestamp;
         address user = mDeviceToUser[_device];
-        mUserToDeviceToBalance[user][_device].balance += amount;
+        bytes32 hashDeviceId = mUserToDeviceToHashDevice[user][_device];
+        mUserToHashDeviceToBalance[user][hashDeviceId][_device].balance += amount;
         mUserToBalance[user] += amount;
+        BalanceHistory memory balanceHistory = BalanceHistory({
+            timestamp: block.timestamp,
+            action: Action.Add,
+            amount: amount,
+            device: _device
+        });
+        userBalanceHistories[user].push(balanceHistory);
+        mDeviceToBalanceHistories[_device].push(balanceHistory);
         // Emit sự kiện để ghi nhận thay đổi balance
         emit BalanceUpdated(_device, balances[_device]);
     }
@@ -1005,30 +1041,142 @@ contract MiningDevice {
         }
         return balance;
     }
-    function getAllDeviceBalances(address user) external view returns(BalanceDevice[] memory ,uint256){
+    function getAllDeviceBalances(address user,bytes32 hashDeviceId) external view returns(BalanceDevice[] memory ,uint256){
         require(user !=address(0) , 'Invalid user');
         address[] memory userDeviceList = userDevices[user];
         BalanceDevice[] memory dataBalancesOfDeviceAUserArray = new BalanceDevice[](userDeviceList.length);
+        uint256 total;
         for (uint256 i = 0; i < userDeviceList.length ;i++){  // duyệt qua tất cả thiết bị và lưu trữ balance nào đó
-            dataBalancesOfDeviceAUserArray[i] = mUserToDeviceToBalance[user][userDeviceList[i]];
+            dataBalancesOfDeviceAUserArray[i] = mUserToHashDeviceToBalance[user][hashDeviceId][userDeviceList[i]];
+            total += mUserToHashDeviceToBalance[user][hashDeviceId][userDeviceList[i]].balance;
         }
-        return (dataBalancesOfDeviceAUserArray,mUserToBalance[user]);
+        // return (dataBalancesOfDeviceAUserArray,mUserToBalance[user]);
+            return (dataBalancesOfDeviceAUserArray,total);
+
     }
 
     function withdraw(address user, address device, uint256 amount) public onlyMiningUser {
-        require(balances[device] >= amount, "Insufficient balance");
+        bytes32 hashDeviceId = mUserToDeviceToHashDevice[user][device];
+        require(balances[device] >= amount && mUserToBalance[user] >= amount && mUserToHashDeviceToBalance[user][hashDeviceId][device].balance >= amount , "Insufficient balance");
         balances[device] -= amount;
-        mUserToDeviceToBalance[user][device].balance -= amount;
+        mUserToHashDeviceToBalance[user][hashDeviceId][device].balance -= amount;
         mUserToBalance[user] -= amount;
+        BalanceHistory memory balanceHistory = BalanceHistory({
+            timestamp: block.timestamp,
+            action: Action.Withdraw,
+            amount: amount,
+            device: device
+        });
+        userBalanceHistories[user].push(balanceHistory);
+        mDeviceToBalanceHistories[device].push(balanceHistory);
     }
 
 
     function rebackWithdraw(address user, address device, uint256 amount) public onlyMiningUser {
         require(amount > 0, "Insufficient amount");
         balances[device] += amount;
-        mUserToDeviceToBalance[user][device].balance += amount;
+        bytes32 hashDeviceId = mUserToDeviceToHashDevice[user][device];
+        mUserToHashDeviceToBalance[user][hashDeviceId][device].balance += amount;
         mUserToBalance[user] -= amount;
+        BalanceHistory memory balanceHistory = BalanceHistory({
+            timestamp: block.timestamp,
+            action: Action.Add,
+            amount: amount,
+            device: device
+        });
+        userBalanceHistories[user].push(balanceHistory);
+        mDeviceToBalanceHistories[device].push(balanceHistory);
     }
+    function getUserBalanceHistory(address user) external view returns (BalanceHistory[] memory) {
+        return userBalanceHistories[user];
+    }
+    function getBDeviceBalanceHistory(address device) external view returns (BalanceHistory[] memory) {
+        return mDeviceToBalanceHistories[device];
+    }
+    function getUserBalanceHistoryByTime(
+        address user,
+        uint256 from,
+        uint256 to,
+        uint256 page,
+        uint256 limit
+    ) external view returns (BalanceHistory[] memory) {
+        require(limit > 0, "Limit must be > 0");
+        require(page > 0, "Page must be > 0");
+
+        BalanceHistory[] memory all = userBalanceHistories[user];
+
+        // Bước 1: đếm số bản ghi phù hợp
+        uint256[] memory matchedIndexes = new uint256[](all.length);
+        uint256 matchedCount = 0;
+        for (uint256 i = 0; i < all.length; i++) {
+            if (all[i].timestamp >= from && all[i].timestamp <= to) {
+                matchedIndexes[matchedCount] = i;
+                matchedCount++;
+            }
+        }
+
+        // Bước 2: xác định chỉ số bắt đầu và kết thúc theo phân trang
+        uint256 start = (page - 1) * limit;
+        if (start >= matchedCount) {
+            return new BalanceHistory[](0) ; // Không có dữ liệu
+        }
+
+        uint256 end = start + limit;
+        if (end > matchedCount) {
+            end = matchedCount;
+        }
+
+        // Bước 3: tạo mảng kết quả
+        BalanceHistory[] memory result = new BalanceHistory[](end - start);
+        for (uint256 i = start; i < end; i++) {
+            result[i - start] = all[matchedIndexes[i]];
+        }
+
+        return result;
+    }
+    function getDeviceBalanceHistoryByTime(
+        address device,
+        uint256 from,
+        uint256 to,
+        uint256 page,
+        uint256 limit
+    ) external view returns (BalanceHistory[] memory) {
+        require(limit > 0, "Limit must be > 0");
+        require(page > 0, "Page must be > 0");
+
+        BalanceHistory[] memory all = mDeviceToBalanceHistories[device];
+
+        // Bước 1: đếm số bản ghi phù hợp
+        uint256[] memory matchedIndexes = new uint256[](all.length);
+        uint256 matchedCount = 0;
+        for (uint256 i = 0; i < all.length; i++) {
+            if (all[i].timestamp >= from && all[i].timestamp <= to) {
+                matchedIndexes[matchedCount] = i;
+                matchedCount++;
+            }
+        }
+
+        // Bước 2: xác định chỉ số bắt đầu và kết thúc theo phân trang
+        uint256 start = (page - 1) * limit;
+        if (start >= matchedCount) {
+            return new BalanceHistory[](0) ; // Không có dữ liệu
+        }
+
+        uint256 end = start + limit;
+        if (end > matchedCount) {
+            end = matchedCount;
+        }
+
+        // Bước 3: tạo mảng kết quả
+        BalanceHistory[] memory result = new BalanceHistory[](end - start);
+        for (uint256 i = start; i < end; i++) {
+            result[i - start] = all[matchedIndexes[i]];
+        }
+
+        return result;
+    }
+
+
 }
 
 contract MiningUser {
@@ -1040,15 +1188,11 @@ contract MiningUser {
         uint256 createdTime;
         bool isLocked;
     }
-
-
-    struct DraftUser {
-        address referral;
-        string encryptToken;
-        bytes32 OTP;
-    }
-
-
+    // struct DraftUser {
+    //     address referral;
+    //     string encryptToken;
+    //     bytes32 OTP;
+    // }
     struct UserAmount {
         address device;
         uint256 usdtAmount;
@@ -1059,7 +1203,7 @@ contract MiningUser {
     
     mapping(address => User) private users;
     mapping(address => UserAmount[]) private userAmounts;
-    mapping(address => address[]) private referrals;
+    // mapping(address => address[]) private referrals;
     mapping(address => bytes32) private activationCodes;
     
     event UserRegistered(address indexed user, address indexed parent);
@@ -1069,9 +1213,9 @@ contract MiningUser {
 
     event ResourcePurchased(address indexed user, address indexed device, uint256 resourceAmount, uint256 usdtAmount);
     event DepositRefunded(address indexed user, uint256 index, uint256 usdtAmount, uint256 ethReceived);
-    event RefererCreateOtp(address referral, bytes32 otp);
+    event RefererCreateOtp(address referral, string otp);
 
-    event UserRef(address indexed referal, address indexed referer, bytes32 otp);
+    event UserRef(address indexed referal, address indexed referer, string otp);
     event DeviceReplaced(address oldWallet, address newWallet, uint256 atTime);
 
     uint8 private constant MAX_REFERRAL = 10;
@@ -1094,15 +1238,17 @@ contract MiningUser {
 
     mapping(address => mapping(uint256 => bool)) public isDepositWithdrawn;
     // INoti public Notification;
-    mapping(address => bool) public mUserToOtpStatus; //user => true if otp right
+    // mapping(address => bool) public mUserToOtpStatus; //user => true if otp right
     address rootUser;
     address public owner;
-    mapping(bytes32 => uint256) public mOtpToExpireTime;
+    mapping(string => uint256) public mOtpToExpireTime;
     // mapping(address => bytes32) public mReferalToOtp;
-    mapping(bytes32 => address) public mOtpToReferer; 
+    mapping(string => address) public mOtpToReferer; 
     mapping(bytes32 => address) public deviceToActivatedUser; //hashDeviceId => user
     mapping(address => address[]) private children;
-    mapping(bytes32 => bool) public isOtpUsed; //otp => used(true)
+    mapping(string => bool) public isOtpUsed; //otp => used(true)
+    bool private locked;
+
     modifier onlyBE() {
         require(BE == msg.sender, "only BE can call");
         _;
@@ -1118,6 +1264,13 @@ contract MiningUser {
         require(msg.sender == owner, "Not owner");
         _;
     }
+    modifier nonReentrant() {
+        require(!locked, "Reentrant call");
+        locked = true;
+        _;
+        locked = false;
+    }
+
     constructor(
         address _BE,
         address _usdtAddress,
@@ -1189,9 +1342,31 @@ contract MiningUser {
         deviceToActivatedUser[_hashDeviceID] = _user;
         emit UserRegistered(_user, _parent);
     }
+    function generateOTP() internal view returns (string memory) {
+        bytes memory charset = "abcdefghijklmnopqrstuvwxyz0123456789";
+        uint256 length = 6;
+        bytes memory otp = new bytes(length);
+
+        for (uint256 i = 0; i < length; i++) {
+            // Lấy ngẫu nhiên chỉ số trong charset
+            uint256 rand = uint256(
+                keccak256(
+                    abi.encodePacked(
+                        msg.sender,
+                        block.timestamp,
+                        i
+                    )
+                )
+            );
+            otp[i] = charset[rand % charset.length];
+        }
+
+        return string(otp);
+    }
     //referer create otp
-    function createOTP() external returns(bytes32 otp){
-        otp = keccak256(abi.encodePacked(msg.sender, block.timestamp));
+    function createOTP() external returns(string memory otp){
+        // otp = keccak256(abi.encodePacked(msg.sender, block.timestamp));
+        otp = generateOTP();
         // mReferalToOtp[msg.sender] = otp;
         mOtpToExpireTime[otp] = block.timestamp + 10 minutes;
         mOtpToReferer[otp] = msg.sender;
@@ -1199,7 +1374,7 @@ contract MiningUser {
         return otp;
     }
     //referal send otp
-    function refUserViaQRCode(bytes32 _otp, bytes32 _hashDeviceID) external {
+    function refUserViaQRCode(string memory _otp, bytes32 _hashDeviceID) external {
         require(!isOtpUsed[_otp],"otp was used");
         require(mOtpToReferer[_otp] != address(0),"otp does not match any referer");
         // require(mReferalToOtp[_referralAddress] == _otp, "wrong otp");
@@ -1218,19 +1393,55 @@ contract MiningUser {
         registerUser(_referral,_parent, _hashDeviceID);
         emit UserActivated(_referral, _parent);
     }
-    function switchWalletWithDevice(bytes32 _hashDeviceID) external {
+    function switchWalletWithDevice(bytes32 _hashDeviceID) external {      
         address oldWallet = deviceToActivatedUser[_hashDeviceID];
+        require(msg.sender != oldWallet, "Same wallet address");
         require(oldWallet != address(0), "Device not activated yet");
         require(users[msg.sender].parent == address(0), "New wallet already registered");
-
+        // 1. Lưu thông tin user cũ
+        User memory oldUser = users[oldWallet];
         // Copy user data từ ví cũ sang ví mới
-        users[msg.sender] = users[oldWallet];
-        
+        // users[msg.sender] = users[oldWallet];
+         // 2. Cập nhật children mapping - chuyển children từ oldWallet sang newWallet
+        children[msg.sender] = children[oldWallet];
+        delete children[oldWallet];
+        // 3. Cập nhật parent reference của tất cả children
+        address[] memory userChildren = children[msg.sender];
+        for (uint256 i = 0; i < userChildren.length; i++) {
+            users[userChildren[i]].parent = msg.sender;
+        }
+         
+        // 4. Cập nhật children array của parent
+        if (oldUser.parent != address(0)) {
+            address[] storage parentChildren = children[oldUser.parent];
+            for (uint256 i = 0; i < parentChildren.length; i++) {
+                if (parentChildren[i] == oldWallet) {
+                    parentChildren[i] = msg.sender;
+                    break;
+                }
+            }
+        }
+        // 5. Copy user data với địa chỉ mới
+        users[msg.sender] = User({
+            parent: oldUser.parent,
+            device: oldUser.device,
+            referralCount: oldUser.referralCount,
+            createdTime: oldUser.createdTime,
+            isLocked: oldUser.isLocked
+        });
         // Cập nhật lại device → wallet hiện tại
         deviceToActivatedUser[_hashDeviceID] = msg.sender;
+        miningDeviceContract.updateNewUserLinkDevice(msg.sender,oldWallet,_hashDeviceID);
+        for (uint i = 0; i < userAmounts[oldWallet].length; i++) {
+            userAmounts[msg.sender].push(userAmounts[oldWallet][i]);
+            isDepositWithdrawn[msg.sender][i] = isDepositWithdrawn[oldWallet][i];
+            isDepositWithdrawn[oldWallet][i] = false;
+        }
+        
         // Xoá thông tin ví cũ
         delete users[oldWallet];
-        miningDeviceContract.updateNewUserLinkDevice(msg.sender,oldWallet);
+        delete userAmounts[oldWallet];
+        
         emit DeviceReplaced(oldWallet, msg.sender, block.timestamp);
     }
 
@@ -1287,7 +1498,7 @@ contract MiningUser {
         return expectedUSDT;
     }
     /// @dev User cọc để rút MTD về ví
-    function depositToWithdraw(address _device, uint256 resourceAmount) external {
+    function depositToWithdraw(address _device, uint256 resourceAmount) external nonReentrant{
         // require(usdtAmount > 100, "Must send USDT to deposit");
         require(!users[msg.sender].isLocked, "user is locked");
 
@@ -1374,6 +1585,7 @@ contract MiningUser {
     // Hàm nhận ETH từ validator
     receive() external payable {}
 
+
     // Hàm lấy ra mảng BalanceWallet của 8 tầng dưới trên cây của user
     function getDownlineBalances(address _user) external view returns (BalanceWallet[] memory) {
         require(_user != address(0), "Invalid user address");
@@ -1420,7 +1632,8 @@ contract MiningUser {
                 // Thêm child vào mảng kết quả
                 balances[currentIndex] = BalanceWallet({
                     userAddress: child,
-                    balance: miningDeviceContract.mUserToBalance(child)
+                    balance: miningDeviceContract.mUserToBalance(child),
+                    level: currentLevel
                 });
                 currentIndex++;
                 
@@ -1480,7 +1693,8 @@ contract MiningUser {
                 if (currentLevel == targetLevel) {
                     balances[currentIndex] = BalanceWallet({
                         userAddress: child,
-                        balance: miningDeviceContract.mUserToBalance(child)
+                        balance: miningDeviceContract.mUserToBalance(child),
+                        level: currentLevel
                     });
                     currentIndex++;
                 } else {
@@ -1555,5 +1769,4 @@ contract MiningUser {
             }
         }
     }
-
 }

@@ -19,7 +19,7 @@ contract MasterPool is Ownable  {
     mapping(address => bool) public isPool;
     constructor(address _usdt,address _ultraUTXO_SC) Ownable(msg.sender) payable {
         usdt = _usdt;
-        FEE_RATE = 5; //5%
+        FEE_RATE = 1; //1%
         ultraUTXO_SC = _ultraUTXO_SC;
         isController[msg.sender] = true;
     }

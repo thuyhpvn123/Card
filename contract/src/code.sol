@@ -514,6 +514,7 @@ contract Code {
         bool transferable,
         uint256 expireTime
     ) public isAllowed returns(bytes memory) {
+        require(assignedTo != address(0), "owner can not be address(0) ");
         bytes memory code = generateCode(publicKey); // Generate hashed code
         require(isValidCode(code), "Invalid code");
         require(!codeExists(code), "Code already exists"); // Check for duplicates
