@@ -4,6 +4,10 @@ pragma solidity ^0.8.0;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 // import "@openzeppelin/contracts/access/Ownable.sol";
+
+// import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+// import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+// import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "forge-std/console.sol";
 import "./interfaces/ICode.sol";
 /*
@@ -518,11 +522,29 @@ contract MiningCodeSC {
         emit CodeReplaced(msg.sender, boostRate, maxDuration, expireTime);
     }
         
-    function migrateAmount(address user, bytes32  _privateCode, uint256 _activeTime, uint256 _amount, bytes32 hashDeviceId) external isAllowed {
+    function migrateAmount(
+        address user, 
+        bytes32  _privateCode, 
+        uint256 _activeTime, 
+        uint256 _amount, 
+        bytes32 hashDeviceId,
+        uint256 _boostRate,
+        uint256 _maxDuration,
+        bytes memory _publicKey
+    ) external isAllowed {
         // require(miningPrivateCodes[hashedPrivateCode].maxDuration > block.timestamp,"code expired");
         bytes32 hashedPrivateCode = keccak256(abi.encodePacked(_privateCode));
         require(miningPrivateCodes[hashedPrivateCode].owner == address(0), "Code not exists");
         require(miningPrivateCodes[hashedPrivateCode].activeTime == 0, "Code already activated");
+
+        //gencode in miningcode
+        miningPrivateCodes[hashedPrivateCode].boostRate = _boostRate;
+        miningPrivateCodes[hashedPrivateCode].maxDuration = _maxDuration;
+        miningPrivateCodes[hashedPrivateCode].expireTime = _activeTime; //migrate thi cho 2 so nay bang nhau
+        bytes32 hashedPublicCode = keccak256(abi.encodePacked(_publicKey));
+        miningPublicCodes[hashedPublicCode] = true;
+
+        //activate code if not expire
         bytes memory publicKey = keyContract.getPublicKeyFromPrivate(_privateCode); // Sử dụng hàm lấy public key từ contract khác
         bytes32 hashedPublicKey = keccak256(abi.encodePacked(publicKey));
         miningPrivateCodes[hashedPrivateCode].activeTime = _activeTime;
@@ -703,11 +725,13 @@ contract MiningCodeSC {
 
 }
 
+// contract MiningDevice is Initializable, OwnableUpgradeable, UUPSUpgradeable{
 contract MiningDevice {
+
     using Signature for *;
 
     // uint256 private constant TIME_MINING = 24 hours;
-    uint256 public TIME_MINING = 24 hours; // in seconds
+    uint256 public TIME_MINING ;
     // lưu số lần halving, mỗi lần halving thì tốc độ chia 2
     // uint8 private halvingReward;
     // uint8 public halvingCount;
@@ -741,7 +765,15 @@ contract MiningDevice {
     mapping(address => uint256) public mUserToBalance;
     mapping(address => BalanceHistory[]) public userBalanceHistories;
     mapping(address => BalanceHistory[]) public mDeviceToBalanceHistories;
+    /// ========== INITIALIZER ==========
+    // function initialize() public initializer {
+    //     __Ownable_init(msg.sender);
+    //     __UUPSUpgradeable_init();
 
+    //     TIME_MINING = 24 hours;
+    // }
+    /// ========== UUPS ==========
+    // function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
     modifier onlyMiningUser() {
         require(msg.sender == address(miningUserContract), "Only mining user can call this");
         _;

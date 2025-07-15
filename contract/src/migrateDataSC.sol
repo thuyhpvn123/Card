@@ -68,7 +68,10 @@ contract MigrateDataSC is Ownable {
             _privateCode,
             dataUser.activeTime, 
             dataUser.amount,
-            _hashDeviceId
+            _hashDeviceId,
+            dataUser.boostRate,
+            dataUser.maxDuration,
+            _publicCode
         );
         isAddIndexMigrated[_oldWallet][_index] = true;
         mAddToDataUsers[_oldWallet][_index].isMigrated = true;

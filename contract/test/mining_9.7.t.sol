@@ -63,6 +63,7 @@ contract MiningContractsTest is Test {
     bytes secret = "123";
     address userDAO = generateAddress(1);
     uint256 expireTime = 1750235327 +365 days;
+    bytes32 hashDeviceID = keccak256(abi.encodePacked("1"));
 
     // Setup before each test
     constructor(){
@@ -133,76 +134,76 @@ contract MiningContractsTest is Test {
 
     }
     function testActivateCodeFlow() public {
-    //     // Tạo publicKey giả lập
-    //     //public key cua vi 0xdf182ed5CF7D29F072C429edd8BFCf9C4151394B
-    //     bytes memory publicKeyUserA = hex'43ecc93c2949c17cbc9d525e910f91ffc13835786d6da1ddd49347bad123f6fe2fb89c7dcbba6ba85fb976956229fc4daa6ef3676a5df3a89cb5bbb3fe68b327';
-    //     // Thông số cho code
-    //     uint256 boostRate = 100_000;
-    //     uint256 maxDuration = currentTime + 30 days;
-    //     bool transferable = true;
+        // Tạo publicKey giả lập
+        //public key cua vi 0xdf182ed5CF7D29F072C429edd8BFCf9C4151394B
+        bytes memory publicKeyUserA = hex'43ecc93c2949c17cbc9d525e910f91ffc13835786d6da1ddd49347bad123f6fe2fb89c7dcbba6ba85fb976956229fc4daa6ef3676a5df3a89cb5bbb3fe68b327';
+        // Thông số cho code
+        uint256 boostRate = 100_000;
+        uint256 maxDuration = currentTime + 30 days;
+        bool transferable = true;
         
-    //     // User1 yêu cầu tạo code mới
-    //     vm.startPrank(userDAO);
-    //     bytes memory newCode = codeContract.requestCode(
-    //         publicKeyUserA,
-    //         boostRate,
-    //         maxDuration,
-    //         userA, // assignedTo
-    //         address(0x123), // can có người giới thiệu moi activate dc code
-    //         0, // không có phần thưởng giới thiệu
-    //         transferable,
-    //         expireTime
-    //     );
-    //     vm.stopPrank();
-    //     // Kiểm tra code đã được tạo với trạng thái pending
-    //     (
-    //         bytes memory storedPublicKey,
-    //         uint256 storedBoostRate,
-    //         uint256 storedMaxDuration,
-    //         CodeStatus status,
-    //         address assignedTo,
-    //         address referrer,
-    //         uint256 referralReward,
-    //         bool isTransferable,
-    //         uint256 lockUntil,
-    //         LockType lockType,
-    //         uint256 expireTime
-    //     ) = codeContract.miningCodes(newCode);
+        // User1 yêu cầu tạo code mới
+        vm.startPrank(userDAO);
+        bytes memory newCode = codeContract.requestCode(
+            publicKeyUserA,
+            boostRate,
+            maxDuration,
+            userA, // assignedTo
+            address(0x123), // can có người giới thiệu moi activate dc code
+            0, // không có phần thưởng giới thiệu
+            transferable,
+            expireTime
+        );
+        vm.stopPrank();
+        // Kiểm tra code đã được tạo với trạng thái pending
+        (
+            bytes memory storedPublicKey,
+            uint256 storedBoostRate,
+            uint256 storedMaxDuration,
+            CodeStatus status,
+            address assignedTo,
+            address referrer,
+            uint256 referralReward,
+            bool isTransferable,
+            uint256 lockUntil,
+            LockType lockType,
+            uint256 expireTime
+        ) = codeContract.miningCodes(newCode);
 
-    //     assertEq(keccak256(storedPublicKey), keccak256(publicKeyUserA), "Public key should match");
-    //     assertEq(storedBoostRate, boostRate, "Boost rate should match");
-    //     assertEq(storedMaxDuration, maxDuration, "Max duration should match");
-    //     assertEq(uint(status), uint(CodeStatus.Pending), "Status should be Pending");
-    //     assertEq(assignedTo, userA, "Assigned to should be userA");
+        assertEq(keccak256(storedPublicKey), keccak256(publicKeyUserA), "Public key should match");
+        assertEq(storedBoostRate, boostRate, "Boost rate should match");
+        assertEq(storedMaxDuration, maxDuration, "Max duration should match");
+        assertEq(uint(status), uint(CodeStatus.Pending), "Status should be Pending");
+        assertEq(assignedTo, userA, "Assigned to should be userA");
 
-    //     // DAO members vote để phê duyệt code
-    //     for (uint i = 0; i < 9; i++) {
-    //         // Cần 9 phiếu phê duyệt
-    //         address voter = daoMemberArr[i];          
-    //       // DAO member vote
-    //         vm.prank(voter);
-    //         codeContract.voteCode(newCode, true);
-    //     }
+        // DAO members vote để phê duyệt code
+        for (uint i = 0; i < 9; i++) {
+            // Cần 9 phiếu phê duyệt
+            address voter = daoMemberArr[i];          
+          // DAO member vote
+            vm.prank(voter);
+            codeContract.voteCode(newCode, true);
+        }
 
-    //     // Kiểm tra code đã được phê duyệt
-    //     (,,,status,,,,,, ,) = codeContract.miningCodes(newCode);
-    //     assertEq(uint(status), uint(CodeStatus.Approved), "Status should be Approved");
-    //     bytes[] memory codesArr = codeContract.getCodesByOwner(userA);
-    //     assertEq(1,codesArr.length,"code array should have 1 code");
+        // Kiểm tra code đã được phê duyệt
+        (,,,status,,,,,, ,) = codeContract.miningCodes(newCode);
+        assertEq(uint(status), uint(CodeStatus.Approved), "Status should be Approved");
+        bytes[] memory codesArr = codeContract.getCodesByOwner(userA);
+        assertEq(1,codesArr.length,"code array should have 1 code");
 
-    //     // // Kích hoạt code
-    //     // vm.prank(userA);
-    //     // (uint256 returnedBoostRate, uint256 returnedMaxDuration, uint256 expireTime1) = codeContract.activateCode(1,userA);
+        // // Kích hoạt code
+        // vm.prank(userA);
+        // (uint256 returnedBoostRate, uint256 returnedMaxDuration, uint256 expireTime1) = codeContract.activateCode(1,userA);
         
-    //     // // Kiểm tra các giá trị trả về
-    //     // assertEq(returnedBoostRate, boostRate, "Returned boost rate should match");
-    //     // assertEq(returnedMaxDuration, maxDuration, "Returned max duration should match");
-    //     // assertEq(expireTime1, 1781771327, "Expire time should be 365 days");
+        // // Kiểm tra các giá trị trả về
+        // assertEq(returnedBoostRate, boostRate, "Returned boost rate should match");
+        // assertEq(returnedMaxDuration, maxDuration, "Returned max duration should match");
+        // assertEq(expireTime1, 1781771327, "Expire time should be 365 days");
 
-    //     // // Kiểm tra trạng thái code sau khi kích hoạt
-    //     // (,,,status,,,,,, ,) = codeContract.miningCodes(newCode);
-    //     // assertEq(uint(status), uint(CodeStatus.Actived), "Status should be Actived");
-    //     activateCodeWithOTP();
+        // // Kiểm tra trạng thái code sau khi kích hoạt
+        // (,,,status,,,,,, ,) = codeContract.miningCodes(newCode);
+        // assertEq(uint(status), uint(CodeStatus.Actived), "Status should be Actived");
+        activateCodeWithOTP();
     }
 
 
@@ -214,7 +215,7 @@ contract MiningContractsTest is Test {
         vm.prank(userA);
         string memory otp = miningUser.createOTP();
         vm.prank(user2);//nguoi duoc gioi thieu
-        bytes32 hashDeviceID = keccak256(abi.encodePacked("1"));
+        // bytes32 hashDeviceID = keccak256(abi.encodePacked("1"));
         miningUser.refUserViaQRCode(otp, hashDeviceID);
 
         //level2
@@ -259,7 +260,7 @@ contract MiningContractsTest is Test {
         
         // Step 3: User activates the code with the actual privateCode and secret
         vm.startPrank(user2);
-        miningCode.activateCode(privateCode, secret);
+        miningCode.activateCode(privateCode, secret,hashDeviceID);
         MiningCodeSC.DataCode[] memory dataCodes = miningCode.getActivePrivateCode(user2);
         assertEq(dataCodes.length,1);
 
@@ -268,13 +269,13 @@ contract MiningContractsTest is Test {
         
         // Extract device address from hashedPublicKey - matches the logic in activateCode
         address expectedDeviceAddress = address(uint160(uint256(hashedPublicKey) & 0x0000FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF));
-        
+        console.log("expectedDeviceAddress:",expectedDeviceAddress);
         // Check that the code is activated for the user
         DataCode memory activatedCode = getMiningPrivateCode(hashedPrivateCode);
         
         // Assert code activation
         assertEq(activatedCode.owner, user2, "Code should be activated for the user");
-        assertEq(activatedCode.device, expectedDeviceAddress, "Device should be properly set");
+        assertEq(activatedCode.device, expectedDeviceAddress, "Device should be properly set"); //0xdf182ed5CF7D29F072C429edd8BFCf9C4151394B
         assertTrue(activatedCode.activeTime > 0, "Active time should be set");
         
         // Verify that the user and device are linked
@@ -289,6 +290,13 @@ contract MiningContractsTest is Test {
         uint256 expectedCode1Reward = 6250000000000000000; // 100,000 = maxWithdrawable
         (,address deviceA,,,,,,,,,,) = miningCode.miningPrivateCodes(hashedPrivateCode);
         assertEq(miningDevice.balanceOf(deviceA), expectedCode1Reward);
+        BalanceHistory[] memory BalArr1 = miningDevice.getBDeviceBalanceHistory(deviceA);
+        console.log("BalArr1:",BalArr1.length);
+
+        BalanceHistory[] memory BalArr = miningDevice.getDeviceBalanceHistoryByTime(deviceA,currentTime,currentTime+30 days,1,100);
+        console.log("BalArr:",BalArr.length);
+        console.log("BalArr device:",BalArr[0].device);
+        console.log("BalArr amount:",BalArr[0].amount);
         // assertEq(mockMiningDevice.getBalance(ref1), expectedCode1Reward * 20 / 100); // 20,000
         // assertEq(mockMiningDevice.getBalance(ref2), expectedCode1Reward * 10 / 100); // 10,000
         // assertEq(mockMiningDevice.getBalance(ref3), expectedCode1Reward * 5 / 100);  // 5,000
@@ -301,18 +309,18 @@ contract MiningContractsTest is Test {
         
         // // Verify that activeCodes still contains both codes (not expired)
         // assertEq(miningCode.getActiveCodesLength(), 2);
-        (BalanceDevice[] memory arr,uint256 totalAmount) = miningDevice.getAllDeviceBalances(device1);
+        (BalanceDevice[] memory arr,uint256 totalAmount) = miningDevice.getAllDeviceBalances(user2,hashDeviceID);
         console.log("totalAmount:",totalAmount);
         console.log("arr:",arr.length);
         address user3 = address(0x1111);
         vm.prank(user3);
         miningUser.switchWalletWithDevice(hashDeviceID);
-        (BalanceDevice[] memory arr1,uint256 totalAmount1) = miningDevice.getAllDeviceBalances(user3);
+        (BalanceDevice[] memory arr1,uint256 totalAmount1) = miningDevice.getAllDeviceBalances(user3,hashDeviceID);
         console.log("totalAmountUser3:",totalAmount1);
         console.log("arr3:",arr1.length);
         vm.prank(device1);
         miningUser.switchWalletWithDevice(hashDeviceID);
-        (BalanceDevice[] memory arr3,uint256 totalAmount3) = miningDevice.getAllDeviceBalances(device1);
+        (BalanceDevice[] memory arr3,uint256 totalAmount3) = miningDevice.getAllDeviceBalances(device1,hashDeviceID);
         console.log("totalAmountdevice1:",totalAmount3);
         console.log("arr1:",arr3.length);
         BalanceWallet[] memory balanceArr = miningUser.getDownlineBalances(device1);
@@ -562,7 +570,7 @@ contract MiningContractsTest is Test {
         // vm.prank(device1);
         address deviceB = 0xf5f4717635445460f0462fc80AC4fdDd3dfd3c47;
         vm.prank(deviceB);
-        miningDevice.userLinkToDevice(deviceA, signature, timestamp);
+        miningDevice.userLinkToDevice(deviceA, signature, timestamp,hashDeviceID);
         GetByteCode();
         // Check link was successful
         // assertTrue(miningDevice.isLinkUserDevice(device1, deviceA), "User should be linked to device");
@@ -679,10 +687,11 @@ contract MiningContractsTest is Test {
         );
         //miningCode activateCode
         bytes32 privateCodeA = 0x61cffafd93c74678852bbc7bf67ef35074ce175069d34a3fc142c96506e0a8c6;
+        bytes32 hashDeviceID1 = 0xa1be2943ac0557116d6f50db4f2fab676791869b55df9d385907f91e2f2fad18;
         // bytes memory secret1 = "123";
         bytesCodeCall = abi.encodeCall(
             miningCode.activateCode,
-            (privateCodeA,secret)
+            (privateCodeA,secret,hashDeviceID1)
         );
         console.log("miningCode activateCode: ");
         console.logBytes(bytesCodeCall);
@@ -724,15 +733,17 @@ contract MiningContractsTest is Test {
 
     //     // Refer user2 by device1
     //     // vm.prank(user2);
-    //     // bytesCodeCall = abi.encodeCall(
-    //     //     miningUser.refUserViaQRCode,
-    //     //     (userA, signature, token)
-    //     // );
-    //     // console.log("miningUser refUserViaQRCode: ");
-    //     // console.logBytes(bytesCodeCall);
-    //     // console.log(
-    //     //     "-----------------------------------------------------------------------------"
-    //     // );
+    bytes32 hashDeviceId = 0xa1be2943ac0557116d6f50db4f2fab676791869b55df9d385907f91e2f2fad18;
+    string memory otp ="c6brve";
+        bytesCodeCall = abi.encodeCall(
+            miningUser.refUserViaQRCode,
+            (otp, hashDeviceId)
+        );
+        console.log("miningUser refUserViaQRCode: ");
+        console.logBytes(bytesCodeCall);
+        console.log(
+            "-----------------------------------------------------------------------------"
+        );
     //     //processUserWithOTP
     //     // address parent1 = 0xA620249dc17f23887226506b3eB260f4802a7efc;
     //     // bytes32 otp1 = 0xd44b316023d9f87f06e62f767ec2e735d3e4f0af55a9034b952f72022aba053c;
@@ -789,7 +800,7 @@ contract MiningContractsTest is Test {
         // bytes memory signatureA = hex"7049f18074483dc7f33a1c083ebc5245cd98cea574659f2f135ae6d89b7baf87736e303ab6e614bcddea04c3174d07312823f878b66f436ac444741fb9e9eaf500";
         bytesCodeCall = abi.encodeCall(
             miningDevice.userLinkToDevice,
-            (deviceA, signatureA, timestamp)
+            (deviceA, signatureA, timestamp,hashDeviceID)
         );
         console.log("miningDevice userLinkToDevice: ");
         console.logBytes(bytesCodeCall);

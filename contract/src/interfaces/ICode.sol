@@ -88,5 +88,14 @@ interface IMiningUser {
 }
 interface IMiningCode {
     // function migrateAmount(MigrateData[] memory datas)external;
-    function migrateAmount(address user, bytes32  _privateCode, uint256 _activeTime, uint256 _amount, bytes32 _hashDeviceId) external; 
+ function migrateAmount(
+        address user, 
+        bytes32  _privateCode, 
+        uint256 _activeTime, 
+        uint256 _amount, 
+        bytes32 hashDeviceId,
+        uint256 _boostRate,
+        uint256 _maxDuration,
+        bytes memory _publicKey
+    ) external;
 }
