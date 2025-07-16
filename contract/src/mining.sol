@@ -324,25 +324,6 @@ contract PendingMiningDevice {
  * - Cơ chế này giúp chống spam và chiếm quyền kích hoạt từ node pool
  */
 contract MiningCodeSC {
-    struct ActivationCommit {
-        bytes32 commitHash;
-        uint256 commitTime;
-    }
-
-    struct DataCode {
-        address owner;
-        address device;
-        uint256 boostRate;
-        uint256 maxDuration;
-        address showroom;
-        address ref_1;
-        address ref_2;
-        address ref_3;
-        address ref_4;
-        uint256 activeTime;
-        uint256 expireTime;
-        bytes32 privateCode;
-    }
     // uint256 private constant TIME_MINING = 24 hours;
     uint256 public TIME_MINING = 24 hours;
 
@@ -540,7 +521,7 @@ contract MiningCodeSC {
         //gencode in miningcode
         miningPrivateCodes[hashedPrivateCode].boostRate = _boostRate;
         miningPrivateCodes[hashedPrivateCode].maxDuration = _maxDuration;
-        miningPrivateCodes[hashedPrivateCode].expireTime = _activeTime; //migrate thi cho 2 so nay bang nhau
+        miningPrivateCodes[hashedPrivateCode].expireTime = _maxDuration; //migrate thi cho 2 so nay bang nhau
         bytes32 hashedPublicCode = keccak256(abi.encodePacked(_publicKey));
         miningPublicCodes[hashedPublicCode] = true;
 
@@ -668,7 +649,7 @@ contract MiningCodeSC {
         // console.log("activeCodes.length:",activeCodes.length);
         for (uint256 i = 0; i < activeCodes.length; i++) {
             DataCode memory miningPrivateCode = miningPrivateCodes[activeCodes[i]];
-            if (block.timestamp >= miningPrivateCode.expireTime ) {
+            if (block.timestamp >= miningPrivateCode.maxDuration ) {
                 removedIndexCodes[totalRemovedIndexCode] = i;
                 totalRemovedIndexCode += 1;
                 continue;
@@ -736,7 +717,8 @@ contract MiningDevice {
     // uint8 private halvingReward;
     // uint8 public halvingCount;
     
-    mapping(address => address[]) public userDevices;
+    mapping(address => mapping(bytes32 => address[])) public userDevices; //user =>hashDeviceId=> array of devices
+    mapping(address => address[]) public userAllDevices ; //user => all devices 
     mapping(address => address[]) public deviceUsers; // Lưu trữ user liên kết với từng device
 
     mapping(address => bool) public lockedDevices;     // Kiểm tra trạng thái khóa của thiết bị
@@ -830,7 +812,8 @@ contract MiningDevice {
         require(linkTimeUserDevices[_device][_user] == 0, "Device already linked to this user");
 
         // Liên kết thiết bị với user
-        userDevices[_user].push(_device);  // Thêm thiết bị vào danh sách của user
+        userDevices[_user][hashDeviceId].push(_device);  // Thêm thiết bị vào danh sách của user
+        userAllDevices[_user].push(_device);
         // Lưu lại thông tin user liên kết với device
         deviceUsers[_device].push(_user);
 
@@ -850,9 +833,9 @@ contract MiningDevice {
     }
 
     function updateNewUserLinkDevice(address _newWallet, address _oldWallet, bytes32 hashDeviceId)external onlyMiningUser {
-        require(_newWallet != address(0) && _oldWallet != address(0),"address input wrong");
+        require(_newWallet != address(0) && _oldWallet != address(0) && _newWallet != _oldWallet,"address input wrong");
         console.log("_oldWallet:",_oldWallet);
-        address[] storage deviceArr = userDevices[_oldWallet];
+        address[] storage deviceArr = userDevices[_oldWallet][hashDeviceId];
         console.log("deviceArr.length:",deviceArr.length);
         for(uint256 i; i < deviceArr.length; i++){
             address _device = deviceArr[i];
@@ -877,9 +860,12 @@ contract MiningDevice {
         delete mUserToBalance[_oldWallet];
         console.log("_newWallet:",_newWallet);
 
-        userDevices[_newWallet] = userDevices[_oldWallet];
-        delete userDevices[_oldWallet];
+        userDevices[_newWallet][hashDeviceId] = userDevices[_oldWallet][hashDeviceId];
+        delete userDevices[_oldWallet][hashDeviceId];
 
+        userAllDevices[_newWallet] = userAllDevices[_oldWallet];
+        delete userAllDevices[_oldWallet];
+       
     }
     // Hàm chung xử lý link device (chỉ có thể gọi từ các hàm internal)
     function _linkDevice(address _user, bytes memory _signature, uint256 createdTime, address _device, bool isUserSignature, bytes32 hashDeviceId) internal {
@@ -887,7 +873,7 @@ contract MiningDevice {
         require(_user != address(0), "Invalid user address");
         require(_device != address(0), "Invalid device address");
         require(_signature.length > 0, "Signature required");
-        require(userDevices[_user].length < 50, "Max linked device to user"); // mỗi user có tối da 50 thiết bị
+        require(userDevices[_user][hashDeviceId].length < 50, "Max linked device to user"); // mỗi user có tối da 50 thiết bị
         require(deviceUsers[_device].length < 10, "Max linked device"); // mỗi thiết bị được link tối đa đến 10 tài khoản khác nhau
 
         bytes32 expectedHash;
@@ -915,8 +901,9 @@ contract MiningDevice {
         // Kiểm tra thời gian chữ ký có hợp lệ (trong vòng 10 phút)
         require(block.timestamp - createdTime <= 600, "Signature expired");        // return (block.timestamp - createdTime);
         // Liên kết thiết bị với user
-        userDevices[_user].push(_device);  // Thêm thiết bị vào danh sách của user
-        console.log("userDevices[_user]1111:",userDevices[_user].length);
+        userDevices[_user][hashDeviceId].push(_device);  // Thêm thiết bị vào danh sách của user
+        userAllDevices[_user].push(_device);
+        console.log("userDevices[_user]1111:",userDevices[_user][hashDeviceId].length);
         // Lưu lại thông tin user liên kết với device
         deviceUsers[_device].push(_user);
 
@@ -969,7 +956,7 @@ contract MiningDevice {
         _linkDevice(userAddress, _signature, createdTime, _device, true, hashDeviceId);
     }
 
-    // Hàm để khóa tất cả thiết bị của một user
+    // Hàm để khóa tất cả các user được liên kết với 1 device
     function lockAllDevicesOfUser(address device) external onlyOwner {
         // Lấy tất cả các user đã liên kết với device này
         address[] memory users = deviceUsers[device];
@@ -984,7 +971,7 @@ contract MiningDevice {
             miningUserContract.lockUser(user);
 
             // Lấy danh sách thiết bị của user
-            address[] memory userDevicesList = userDevices[user];
+            address[] memory userDevicesList = userAllDevices[user];
 
             // Duyệt qua tất cả thiết bị của user và khóa từng thiết bị
             for (uint256 j = 0; j < userDevicesList.length; j++) {
@@ -1066,16 +1053,16 @@ contract MiningDevice {
     function balanceOf(address device) public view returns (uint256) {
         return balances[device];
     }
-    function balanceOfAllDeviceAUser(address user) public view returns (uint256) {
+    function balanceOfAllDeviceAUser(address user, bytes32 hashDeviceId) public view returns (uint256) {
         uint256 balance = 0;
-        for (uint256 i=0 ; i < userDevices[user].length; i++){
-            balance += balances[userDevices[user][i]];
+        for (uint256 i=0 ; i < userDevices[user][hashDeviceId].length; i++){
+            balance += balances[userDevices[user][hashDeviceId][i]];
         }
         return balance;
     }
     function getAllDeviceBalances(address user,bytes32 hashDeviceId) external view returns(BalanceDevice[] memory ,uint256){
         require(user !=address(0) , 'Invalid user');
-        address[] memory userDeviceList = userDevices[user];
+        address[] memory userDeviceList = userDevices[user][hashDeviceId];
         BalanceDevice[] memory dataBalancesOfDeviceAUserArray = new BalanceDevice[](userDeviceList.length);
         uint256 total;
         for (uint256 i = 0; i < userDeviceList.length ;i++){  // duyệt qua tất cả thiết bị và lưu trữ balance nào đó
@@ -1487,7 +1474,7 @@ contract MiningUser {
         return users[msg.sender];
     }
 
-    // hàm này mục tiêu để lấy danh sách các tầng trên của user
+    // hàm này mục tiêu để lấy danh sách các tầng trên của device
     function getParentUser(address _user, uint8 _level) external view returns (address[] memory) {
         require(_level <= 4, "user is locked");
 

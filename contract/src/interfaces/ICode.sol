@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: SEE LICENSE IN LICENSE
 pragma solidity ^0.8.20;
+
+enum CodeStatus { Pending, Approved, Actived, Expired }
+enum LockType { None, ActiveLock, MiningLock, TransferLock }
+enum Action {Add, Withdraw}
+
 struct MiningCode {
     bytes publicKey;          // Public key (32 bytes)
     uint256 boostRate;        // Mining boost rate
@@ -13,8 +18,7 @@ struct MiningCode {
     LockType lockType;        // Type of lock
     uint256 expireTime;       //max time to activate code
 }
-enum CodeStatus { Pending, Approved, Actived, Expired }
-enum LockType { None, ActiveLock, MiningLock, TransferLock }
+
 struct MigrateDataUser {
     uint256 maxDuration;      // Maximum valid duration
     address assignedTo;       // Address that owns the code
@@ -41,7 +45,26 @@ struct BalanceHistory {
     uint256 amount;
     address device;
 }
-enum Action {Add, Withdraw}
+struct ActivationCommit {
+    bytes32 commitHash;
+    uint256 commitTime;
+}
+
+struct DataCode {
+    address owner;
+    address device;
+    uint256 boostRate;
+    uint256 maxDuration;
+    address showroom;
+    address ref_1;
+    address ref_2;
+    address ref_3;
+    address ref_4;
+    uint256 activeTime;
+    uint256 expireTime;
+    bytes32 privateCode;
+}
+
 interface PublicKeyFromPrivateKey {
     function getPublicKeyFromPrivate(bytes32 _privateCode) external returns (bytes memory);
 }
