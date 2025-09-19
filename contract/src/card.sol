@@ -2,6 +2,7 @@
 pragma solidity ^0.8.20;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./utxo.sol";
+import "./interfaces/ICard.sol";
 import "forge-std/console.sol";
 /**
  * @title CardTokenManager
@@ -9,44 +10,13 @@ import "forge-std/console.sol";
  */
 contract CardTokenManager is Ownable {
     // ===== STRUCTS =====
-    struct CardToken {
-        address owner;
-        string region;
-        uint256 issuedAt;
-        bool isActive;
-        uint256 totalUsage;
-        bytes32 cardHash; // Mã định danh duy nhất của thẻ (hash)
-    }
-
-    struct MerchantRule {
-        string[] allowedRegions;
-        uint256 maxPerMinute;
-        uint256 maxPerHour;
-        uint256 maxPerDay;
-        uint256 maxPerWeek;
-    }
-
-    // Rule toàn cục áp cho mọi token và card (ngoài rule của merchant)
-    struct GlobalRule {
-        uint256 maxPerMinute;
-        uint256 maxPerHour;
-        uint256 maxPerDay;
-        uint256 maxPerWeek;
-        uint256 maxTotal; // tổng số lượt quẹt được
-    }
-    struct PoolInfo {
-        address ownerPool;
-        bytes32 parentHash;
-        address pool;
-        uint256 parentValue;
-    }
 
     // ===== EVENTS =====
-    event TokenRequest(address  user, bytes encryptedCardData, bytes32 requestId);
+    event TokenRequest(address  indexed user, bytes encryptedCardData, bytes32 requestId);
     event TokenIssued(address indexed user, bytes32 indexed tokenId, string region, bytes32 requestId, bytes32 cardHash);
     event TokenFailed(address indexed user, bytes32 requestId, string reason);
-    event ChargeRequest(address  user, bytes32 tokenId, address merchant, uint256 amount);
-    event ChargeRejected(address  user, bytes32 tokenId, string reason);
+    event ChargeRequest(address  indexed user, bytes32 tokenId, address merchant, uint256 amount);
+    event ChargeRejected(address  indexed user, bytes32 tokenId, string reason);
     event RequestUpdateTxStatus(string transactionID,bytes32 tokenId);
     // ===== STATE =====
     mapping(bytes32 => CardToken) public tokens; // tokenId => CardToken
@@ -91,13 +61,7 @@ contract CardTokenManager is Ownable {
     mapping(bytes32 => bytes32) private mRequestIdTokenId;//sửa private thành private để debug
     mapping(address => bool) public isAdmin;
     mapping(address => bytes32) public mUserToLastRequestId;
-    enum TxStatus { FAIL, BEING_PROCESSED, SUCCESS }
-    struct TransactionStatus{
-        string txID;
-        TxStatus status;
-        uint64 atTime;
-        string reason;
-    }
+
     mapping(string => TransactionStatus) public mTxIdToStatus;
     mapping(bytes32 => string) public mTokenIdToLastTxID;
     UltraUTXO public ULTRA_UTXO;

@@ -5,6 +5,8 @@ import "forge-std/Test.sol";
 import "../src/mining.sol";
 import "../src/code.sol";
 import "../src/usdt.sol";
+import "../src/interfaces/ICode.sol";
+import "../src/migrateDataSC.sol";
 // import "../src/PublicKeyFromPrivateKey.sol";
 // Mock contract for PublicKeyFromPrivateKey
 contract PublicKeyFromPrivateKeyMock  {
@@ -41,7 +43,7 @@ contract MiningContractsTest is Test {
     // Code public codeContract;
     Code codeContract;
     // MockCode codeContract;
-
+    MigrateDataSC public MIGRATE_SC;
     // Accounts
     address public owner;
     // address public device1;
@@ -68,12 +70,7 @@ contract MiningContractsTest is Test {
     // Setup before each test
     constructor(){
         owner = address(0x111);
-        vm.startPrank(owner);
-        // Setup accounts with private keys
-        
-        // device1PrivateKey = 0x1;
-        // user2PrivateKey = 0x2;
-        // device1PrivateKey = 0x3;
+        vm.startPrank(owner);        
         device2PrivateKey = 0x4;
         
         device1 = 0xdf182ed5CF7D29F072C429edd8BFCf9C4151394B;
@@ -122,14 +119,19 @@ contract MiningContractsTest is Test {
         // codeContract = new MockCode();
         miningCode = new MiningCodeSC(address(keyContract), address(codeContract));
         
+        MIGRATE_SC = new MigrateDataSC();
         // Setup contract connections
         miningCode.setMiningDevice(address(miningDevice));
         miningCode.setMiningUser(address(miningUser));
+        miningCode.setMigrateSC(address(MIGRATE_SC));
         miningDevice.setMiningUser(address(miningUser));
         miningDevice.setMiningCode(address(miningCode));
-        pendingMiningDevice.setValidator(validator);
         miningDevice.setAdmin(address(pendingMiningDevice),true);
         miningDevice.setAdmin(address(miningCode),true);
+        pendingMiningDevice.setValidator(validator);
+        codeContract.setAdmin(address(MIGRATE_SC));
+        MIGRATE_SC.setMiningCodeContract(address(miningCode));
+        MIGRATE_SC.setCodeContract(address(codeContract));
         vm.stopPrank();
 
     }
@@ -261,7 +263,7 @@ contract MiningContractsTest is Test {
         // Step 3: User activates the code with the actual privateCode and secret
         vm.startPrank(user2);
         miningCode.activateCode(privateCode, secret,hashDeviceID);
-        MiningCodeSC.DataCode[] memory dataCodes = miningCode.getActivePrivateCode(user2);
+        DataCode[] memory dataCodes = miningCode.getActivePrivateCode(user2);
         assertEq(dataCodes.length,1);
 
         vm.stopPrank();
@@ -379,20 +381,20 @@ contract MiningContractsTest is Test {
     }
     
     // Define DataCode struct to match the one in MiningCode
-    struct DataCode {
-        address owner;
-        address device;
-        uint256 boostRate;
-        uint256 maxDuration;
-        address showroom;
-        address ref_1;
-        address ref_2;
-        address ref_3;
-        address ref_4;
-        uint256 activeTime;
-        uint256 expireTime;
-        bytes32 privateCode;
-    }
+    // struct DataCode {
+    //     address owner;
+    //     address device;
+    //     uint256 boostRate;
+    //     uint256 maxDuration;
+    //     address showroom;
+    //     address ref_1;
+    //     address ref_2;
+    //     address ref_3;
+    //     address ref_4;
+    //     uint256 activeTime;
+    //     uint256 expireTime;
+    //     bytes32 privateCode;
+    // }
     // function testActivateCodeTooSoon() public {
     //     bytes32 privateCode = 0x61cffafd93c74678852bbc7bf67ef35074ce175069d34a3fc142c96506e0a8c6;
     //     // bytes memory secret = "abcd";
@@ -791,8 +793,8 @@ contract MiningContractsTest is Test {
         address deviceA = 0x3d9Cf842Bd57D60c760622Fb394BE918623f5a7a;
         //signature cua device ky voi message = device+time
         bytes memory signatureA = hex"d9d576b3c22f9ea72c0ffb831218aa51f26525a3a67e0573a7f7a86aa5f29f5869a33fa08177314bebaec9bae2e529f06aef1452537b411f9bea432b2fdd1a8a00";
+        
         // Link user to device 
-        // vm.prank(device1);
         address deviceB = 0xf5f4717635445460f0462fc80AC4fdDd3dfd3c47;
         // uint256 timestamp = 1750136030;
         // //user = 0xdf182ed5cf7d29f072c429edd8bfcf9c4151394b
@@ -831,6 +833,25 @@ contract MiningContractsTest is Test {
     //         "-----------------------------------------------------------------------------"
     //     );
 
+    //BEmigrateData
+        MigrateDataUser[] memory dataUserArr = new MigrateDataUser[](1);
+        dataUserArr[0] = MigrateDataUser({
+            maxDuration:1776598053,
+            assignedTo:0x05EcB6E6B6Bda9440171236B80bce0bF5f8D0b8d,
+            activeTime:1714390053,
+            amount:3174184000000000000000,
+            isMigrated: false,
+            boostRate:100000
+        });
+        bytesCodeCall = abi.encodeCall(
+                MIGRATE_SC.BEmigrateData,
+                (dataUserArr)
+        );
+        console.log("MIGRATE_SC BEmigrateData: ");
+        console.logBytes(bytesCodeCall);
+        console.log(
+            "-----------------------------------------------------------------------------"
+        );
 
     }
 

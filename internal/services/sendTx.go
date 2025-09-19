@@ -131,7 +131,7 @@ func (h *sendTransactionService) sendTransactionAndGetResult(
 			}
 			return hex.EncodeToString(res.Receipt.Return()), nil
 
-		case <-time.After(10 * time.Second):
+		case <-time.After(60 * time.Second):
 			logger.Error(fmt.Sprintf("Timeout in %s", methodName))
 			if attempt < attempts {
 				time.Sleep(1 * time.Second)

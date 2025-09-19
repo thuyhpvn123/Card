@@ -180,8 +180,8 @@ func (h *CardHandler) ListenEvents() {
 							}
 							logs, err := utils.GetLogs(
 								rpcURL, 
-								fmt.Sprintf("0x%x", fromBlock+1), 
-								fmt.Sprintf("0x%x", latestBlockUint), 
+								fmt.Sprintf("0x%x", currentFrom), 
+								fmt.Sprintf("0x%x", currentTo), 
 								contractAddress, 
 								topic)
 							if err != nil {
@@ -481,21 +481,21 @@ func (h *CardHandler) handleChargeRequest(data string) {
 		}
 
 	}else if kq.Status == "success"{
-		go func(){
+		// go func(){
 			_,err = h.service.UpdateTxStatus(tokenId, kq.TransactionID, 2, uint64(atTime), "success")
 			if err != nil {
 				logger.Error("Error when UpdateTxStatus:",err)
 				return
 			}	
-		}()
+		// }()
 
-		go func(){
+		// go func(){
 			_,err := h.service.MintUTXO(amount, merchant, kq.TransactionID)
 			if err != nil {
 				logger.Error("Error when MintUTXO:",err)
 				return
 			}	
-		}()
+		// }()
 	}else{
 		// kq.Status == "being processed" || (kq.Status == "failed" && strings.Contains(kq.Message, "Transaction failed, pending") ){
 		logger.Info("⏳ Giao dịch đang xử lý...")

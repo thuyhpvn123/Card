@@ -2,18 +2,20 @@ package utils
 
 import (
 	"bytes"
+	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
-	"crypto/tls"
+
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"golang.org/x/crypto/sha3"
 )
 var insecureClient = &http.Client{
-	Timeout: 10 * time.Second,
+	Timeout: 60 * time.Second,
 	Transport: &http.Transport{
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	},
@@ -104,21 +106,50 @@ func GetLatestBlockNumber(rpcURL string) (string, error) {
 		 Params: []interface{}{}, 
 		 ID: 1, 
 	}
-	data, _ := json.Marshal(req)
-	resp, err := insecureClient.Post(rpcURL, "application/json", bytes.NewBuffer(data))
+	data, err := json.Marshal(req)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to marshal JSON-RPC request: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	httpReq, err := http.NewRequestWithContext(ctx, "POST", rpcURL, bytes.NewBuffer(data))
+	if err != nil {
+		return "", fmt.Errorf("failed to create HTTP request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := insecureClient.Do(httpReq)
+	if err != nil {
+		return "", fmt.Errorf("failed to send request: %w", err)
 	}
 	defer resp.Body.Close()
 
-	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("unexpected status code %d: %s", resp.StatusCode, string(body))
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read response body: %w", err)
+	}
 
 	var rpcResp struct {
 		Result string `json:"result"`
+		Error  *struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+		} `json:"error,omitempty"`
 	}
 
 	if err := json.Unmarshal(body, &rpcResp); err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	if rpcResp.Error != nil {
+		return "", fmt.Errorf("RPC error %d: %s", rpcResp.Error.Code, rpcResp.Error.Message)
 	}
 
 	return rpcResp.Result, nil

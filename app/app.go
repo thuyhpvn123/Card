@@ -29,7 +29,7 @@ type App struct {
 	StopChan    chan bool
 
 	CardHandler *network.CardHandler
-	StorageClient *client.Client
+	// StorageClient *client.Client
 }
 
 func NewApp(
@@ -52,7 +52,7 @@ func NewApp(
 		&c_config.ClientConfig{
 			Version_:                config.MetaNodeVersion,
 			PrivateKey_:             config.PrivateKey_,
-			ParentAddress:           config.ParentAddress,
+			ParentAddress:           config.AdminAddress,
 			ParentConnectionAddress: config.ParentConnectionAddress,
 			// DnsLink_:                config.DnsLink(),
 			ConnectionAddress_:      config.ConnectionAddress_,
@@ -64,22 +64,22 @@ func NewApp(
 		logger.Error(fmt.Sprintf("error when create chain client %v", err))
 		return nil, err
 	}
-	app.StorageClient, err = client.NewClient(
-		&c_config.ClientConfig{
-			Version_:                config.MetaNodeVersion,
-			PrivateKey_:             config.PrivateKey_,
-			ParentAddress:           config.AdminAddress,
-			ParentConnectionAddress: config.ParentConnectionAddress,
-			// DnsLink_:                config.DnsLink(),
-			ConnectionAddress_:      config.ConnectionAddress_,
-			ParentConnectionType:    config.ParentConnectionType,
-			ChainId:                 config.ChainId,
-		},
-	)
-	if err != nil {
-		logger.Error(fmt.Sprintf("error when create storage client %v", err))
-		return nil, err
-	}
+	// app.StorageClient, err = client.NewClient(
+	// 	&c_config.ClientConfig{
+	// 		Version_:                config.MetaNodeVersion,
+	// 		PrivateKey_:             config.PrivateKey_,
+	// 		ParentAddress:           config.AdminAddress,
+	// 		ParentConnectionAddress: config.ParentConnectionAddress,
+	// 		// DnsLink_:                config.DnsLink(),
+	// 		ConnectionAddress_:      config.ConnectionAddress_,
+	// 		ParentConnectionType:    config.ParentConnectionType,
+	// 		ChainId:                 config.ChainId,
+	// 	},
+	// )
+	// if err != nil {
+	// 	logger.Error(fmt.Sprintf("error when create storage client %v", err))
+	// 	return nil, err
+	// }
 	// app.EventChan, err = app.StorageClient.Subcribe(
 	// 	common.HexToAddress(config.StorageAddress),
 	// 	common.HexToAddress(config.CardAddress),

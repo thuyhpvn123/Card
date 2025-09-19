@@ -355,7 +355,7 @@ contract MiningCodeSC {
 
 
     bytes32[] activeCodes;
-    uint256 lastTimeMiningDevices;
+    uint256 public lastTimeMiningDevices;
 
     address owner;
     IMiningDevice private miningDevice;
@@ -689,7 +689,7 @@ contract MiningCodeSC {
 
         // Xóa từ cuối về đầu
         for (uint256 i = totalRemovedIndexCode; i > 0; i--) {
-            address owner = miningPrivateCodes[activeCodes[i]].owner;
+            address _owner = miningPrivateCodes[activeCodes[i]].owner;
             uint256 indexCode = removedIndexCodes[i - 1];
 
             if ( indexCode != activeCodes.length - 1 ) {
@@ -698,7 +698,7 @@ contract MiningCodeSC {
             }
 
             activeCodes.pop();
-            mActivePrivateCodes[owner].pop();
+            mActivePrivateCodes[_owner].pop();
             
         }
         lastTimeMiningDevices = block.timestamp;
